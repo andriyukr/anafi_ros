@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+
+<launch>
+	<param name="indoor" type="boolean" value="true" />
+
+	<node name="anafi_bridge" pkg="olympe_bridge" type="anafi_bridge.py" output="screen"/>
+</launch>
