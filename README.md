@@ -1,5 +1,5 @@
 # ROS Bridge for Parrot Drones
-This ROS package contains interface to Olympe SDK. Currently, it supports oly the Parrot Anafi drone.
+This ROS package contains interface to Olympe SDK. Currently, it supports only the Parrot Anafi drone.
 
 ## Overview
 
