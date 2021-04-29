@@ -22,6 +22,9 @@ This package has been tested with **python3** in **ROS Melodic**/**Ubuntu 18.04*
       cd $HOME
       mkdir -p code/parrot-groundsdk
       cd code/parrot-groundsdk
+      sudo snap install git-repo
+      git config --global user.email "you@example.com"
+      git config --global user.name "Your Name"
       repo init -u https://github.com/Parrot-Developers/groundsdk-manifest.git
       repo sync
     
@@ -47,6 +50,18 @@ Use Google Repo binary:
     PATH="${HOME}/.bin:${PATH}"
     curl https://storage.googleapis.com/git-repo-downloads/repo > ~/.bin/repo
     chmod a+rx ~/.bin/repo
+    
+#### Issue:
+    /usr/bin/env: ‘python’: No such file or directory
+#### Solution:
+Set python3 as default:
+
+    echo 'alias python=python3' >> ~/.bash_aliases
+    source ~/.bash_aliases
+    
+Create a symbolic link to python3:
+
+    sudo ln -s /usr/bin/python3 /usr/bin/python
 
 ## Check
     source ~/code/parrot-groundsdk/./products/olympe/linux/env/shell
