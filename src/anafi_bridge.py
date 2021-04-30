@@ -114,6 +114,8 @@ class Anafi(threading.Thread):
 			rospy.loginfo_throttle(10, "Connection to Anafi: " + str(self.drone.get_state(connection_state)["state"]))
 			rate.sleep()
 		rospy.loginfo("Connection to Anafi: " + str(self.drone.get_state(connection_state)["state"]))
+		
+		self.drone(gimbal.stop_offsets_update(gimbal_id=0))
 		       
 		# Record the video stream from the drone
 		#self.tempd = tempfile.mkdtemp(prefix="olympe_streaming_test_")		
@@ -174,7 +176,7 @@ class Anafi(threading.Thread):
 				gimbal_id=0,
 				yaw=0, 
 				pitch=config['max_gimbal_speed'], # [1 180] (deg/s)
-				roll=0
+				roll=config['max_gimbal_speed']
 				)).wait()
 		return config
 		
@@ -231,17 +233,7 @@ class Anafi(threading.Thread):
 			msg_attitude.header = header
 			msg_attitude.quaternion = Quaternion(drone_quat['x'], -drone_quat['y'], -drone_quat['z'], drone_quat['w'])
 			self.pub_attitude.publish(msg_attitude)
-			
-			# TODO: move this to safeAnafi.cpp
-			r1 = R.from_quat([drone_quat['x'], -drone_quat['y'], -drone_quat['z'], drone_quat['w']])
-			drone_RPY = r1.as_euler('xyz', degrees=True)
-			msg_rpy = Vector3Stamped()
-			msg_rpy.header = header
-			msg_rpy.vector.x = drone_RPY[0]
-			msg_rpy.vector.y = drone_RPY[1]
-			msg_rpy.vector.z = drone_RPY[2]
-			self.pub_rpy.publish(msg_rpy)
-					
+							
 			location = metadata[1]['location'] # GPS location [500.0=not available] (decimal deg)
 			msg_location = PointStamped()
 			if location != {}:			
@@ -292,13 +284,15 @@ class Anafi(threading.Thread):
 			msg_pose.pose.orientation = msg_attitude.quaternion
 			self.pub_pose.publish(msg_pose)
 			
-			# TODO: move this to safeAnafi.cpp
+			Rot = R.from_quat([drone_quat['x'], -drone_quat['y'], -drone_quat['z'], drone_quat['w']])
+			drone_rpy = Rot.as_euler('xyz')
+
 			msg_odometry = Odometry()
 			msg_odometry.header = header
 			msg_odometry.child_frame_id = '/body'
 			msg_odometry.pose.pose = msg_pose.pose
-			msg_odometry.twist.twist.linear.x =  math.cos(drone_RPY[2]/180*math.pi)*msg_speed.vector.x + math.sin(drone_RPY[2]/180*math.pi)*msg_speed.vector.y
-			msg_odometry.twist.twist.linear.y = -math.sin(drone_RPY[2]/180*math.pi)*msg_speed.vector.x + math.cos(drone_RPY[2]/180*math.pi)*msg_speed.vector.y
+			msg_odometry.twist.twist.linear.x =  math.cos(drone_rpy[2])*msg_speed.vector.x + math.sin(drone_rpy[2])*msg_speed.vector.y
+			msg_odometry.twist.twist.linear.y = -math.sin(drone_rpy[2])*msg_speed.vector.x + math.cos(drone_rpy[2])*msg_speed.vector.y
 			msg_odometry.twist.twist.linear.z = msg_speed.vector.z
 			self.pub_odometry.publish(msg_odometry)
 		
@@ -389,13 +383,13 @@ class Anafi(threading.Thread):
 		self.drone(gimbal.set_target(
 			gimbal_id=0,
 			control_mode='position', # 'position', 'velocity'
-			yaw_frame_of_reference='none',
+			yaw_frame_of_reference='relative',
 			yaw=0.0,
 			pitch_frame_of_reference='relative', # 'absolute', 'relative', 'none'
 			pitch=msg.angular.y,
 			roll_frame_of_reference='relative',
 			roll=msg.angular.x))
-
+			
 	def switch_manual(self):
 		msg_rpyt = TwistStamped()
 		msg_rpyt.header.stamp = rospy.Time.now()
