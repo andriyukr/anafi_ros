@@ -19,9 +19,8 @@ This package has been tested with **python3** in **ROS Melodic**/**Ubuntu 18.04*
 
 - [Parrot Ground SDK](https://developer.parrot.com/) - SDK for Parrot drones:
 
-      cd $HOME
-      mkdir -p code/parrot-groundsdk
-      cd code/parrot-groundsdk
+      mkdir -p ~/code/parrot-groundsdk
+      cd ~/code/parrot-groundsdk
       sudo snap install git-repo
       git config --global user.email "you@example.com"
       git config --global user.name "Your Name"
@@ -110,7 +109,7 @@ Set up ROS environment:
 #### Issue:
     AttributeError: 'struct_pdraw_media_info' object has no attribute '_2'
 #### Solution:
-Replace `parrot-groundsdk/out/olympe-linux/final/usr/lib/python3.8/site-packages/olympe/arsdkng/pdraw.py` with https://github.com/andriyukr/olympe_bridge/blob/main/extras/pdraw.py, **or** in `parrot-groundsdk/out/olympe-linux/final/usr/lib/python3.8/site-packages/olympe/arsdkng/pdraw.py` replace the following attributes:
+Replace `~/code/parrot-groundsdk/packages/olympe/src/olympe/arsdkng/pdraw.py` with https://github.com/andriyukr/olympe_bridge/blob/main/extras/pdraw.py, **or** in `~/code/parrot-groundsdk/packages/olympe/src/olympe/arsdkng/pdraw.py` replace the following attributes:
 - `frame._1.` with `frame.pdraw_video_frame_0.` on lines `252`, `256`, `257`, `277` and `278`;
 - `media_info.contents._2.video.format` with `media_info.contents.pdraw_media_info_0.video.format` on lines `840`, `842`, `846`, `848` and `849`;
 - `media_info.contents._2.video._2.h264` with `media_info.contents.pdraw_media_info_0.video.pdraw_video_info_0.h264` on line `851`.
