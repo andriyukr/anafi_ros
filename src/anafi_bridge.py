@@ -47,17 +47,16 @@ from olympe_bridge.msg import ParrotCommand
 
 olympe.log.update_config({"loggers": {"olympe": {"level": "ERROR"}}})
 
-DRONE_IP = "10.202.0.1"
+DRONE_IP = "192.168.42.1"
 SKYCTRL_IP = "192.168.53.1"
 
 class Anafi(threading.Thread):
 
 	def __init__(self):	
-		self.indoor = rospy.get_param("/indoor")
-		if self.indoor:			
-			rospy.loginfo("We are indoor");
+		if rospy.get_param("/indoor"):			
+			rospy.loginfo("We are indoor")
 		else:
-			rospy.loginfo("We are outdoor");
+			rospy.loginfo("We are outdoor")
 					
 		self.pub_image = rospy.Publisher("/anafi/image", Image, queue_size=1)
 		self.pub_time = rospy.Publisher("/anafi/time", Time, queue_size=1)
@@ -85,9 +84,15 @@ class Anafi(threading.Thread):
 		rospy.Subscriber("/anafi/cmd_vel", TwistStamped, self.moveBy_callback)
 		rospy.Subscriber("/anafi/cmd_vel", TwistStamped, self.moveTo_callback)
 		rospy.Subscriber("/anafi/cmd_camera", Twist, self.camera_callback)
-				
-		# Create the olympe.Drone object from its IP address
-		self.drone = olympe.Drone(SKYCTRL_IP)
+		
+		# Connect to the SkyController	
+		if rospy.get_param("/skycontroller"):
+			rospy.loginfo("Connecting through SkyController");
+			self.drone = olympe.Drone(SKYCTRL_IP)
+		# Connect to the Anafi
+		else:
+			rospy.loginfo("Connecting directly to Anafi");
+			self.drone = olympe.Drone(DRONE_IP)
 		
 		# Create listener for RC events
 		every_event_listener = EveryEventListener(self)
@@ -96,26 +101,32 @@ class Anafi(threading.Thread):
 		rospy.on_shutdown(self.stop)
 		
 		self.srv = Server(setAnafiConfig, self.reconfigure_callback)
-		
-		# Connect to the SkyController
+						
 		rate = rospy.Rate(1) # 1hz
 		while True:
 			connection = self.drone.connect()
 			if connection[0] == True:
 				break
 			rate.sleep()
-		rospy.loginfo("Connection to SkyController: " + getattr(connection, 'message'))
-		self.switch_manual()
-				
-		# Connect to the drone
-		while True:
-			if self.drone(connection_state(state="connected", _policy="check")):
-				break
-			rospy.loginfo_throttle(10, "Connection to Anafi: " + str(self.drone.get_state(connection_state)["state"]))
-			rate.sleep()
-		rospy.loginfo("Connection to Anafi: " + str(self.drone.get_state(connection_state)["state"]))
 		
-		self.drone(gimbal.stop_offsets_update(gimbal_id=0))
+		# Connect to the SkyController	
+		if rospy.get_param("/skycontroller"):
+			rospy.loginfo("Connection to SkyController: " + getattr(connection, 'message'))
+			self.switch_manual()
+					
+			# Connect to the drone
+			while True:
+				if self.drone(connection_state(state="connected", _policy="check")):
+					break
+				rospy.loginfo_throttle(10, "Connection to Anafi: " + str(self.drone.get_state(connection_state)["state"]))
+				rate.sleep()
+			rospy.loginfo("Connection to Anafi: " + str(self.drone.get_state(connection_state)["state"]))
+		# Connect to the Anafi
+		else:
+			rospy.loginfo("Connection to Anafi: " + getattr(connection, 'message'))
+			self.switch_offboard()
+						
+		self.drone(gimbal.stop_offsets_update(gimbal_id=0)) # TODO: check this issue
 		       
 		# Record the video stream from the drone
 		#self.tempd = tempfile.mkdtemp(prefix="olympe_streaming_test_")		
@@ -176,7 +187,7 @@ class Anafi(threading.Thread):
 				gimbal_id=0,
 				yaw=0, 
 				pitch=config['max_gimbal_speed'], # [1 180] (deg/s)
-				roll=config['max_gimbal_speed']
+				roll=config['max_gimbal_speed'] # [1 180] (deg/s)
 				)).wait()
 		return config
 		
@@ -233,7 +244,17 @@ class Anafi(threading.Thread):
 			msg_attitude.header = header
 			msg_attitude.quaternion = Quaternion(drone_quat['x'], -drone_quat['y'], -drone_quat['z'], drone_quat['w'])
 			self.pub_attitude.publish(msg_attitude)
-							
+			
+			# TODO: move this to safeAnafi.cpp
+			r1 = R.from_quat([drone_quat['x'], -drone_quat['y'], -drone_quat['z'], drone_quat['w']])
+			drone_RPY = r1.as_euler('xyz', degrees=True)
+			msg_rpy = Vector3Stamped()
+			msg_rpy.header = header
+			msg_rpy.vector.x = drone_RPY[0]
+			msg_rpy.vector.y = drone_RPY[1]
+			msg_rpy.vector.z = drone_RPY[2]
+			self.pub_rpy.publish(msg_rpy)
+					
 			location = metadata[1]['location'] # GPS location [500.0=not available] (decimal deg)
 			msg_location = PointStamped()
 			if location != {}:			
@@ -284,15 +305,13 @@ class Anafi(threading.Thread):
 			msg_pose.pose.orientation = msg_attitude.quaternion
 			self.pub_pose.publish(msg_pose)
 			
-			Rot = R.from_quat([drone_quat['x'], -drone_quat['y'], -drone_quat['z'], drone_quat['w']])
-			drone_rpy = Rot.as_euler('xyz')
-
+			# TODO: move this to safeAnafi.cpp
 			msg_odometry = Odometry()
 			msg_odometry.header = header
 			msg_odometry.child_frame_id = '/body'
 			msg_odometry.pose.pose = msg_pose.pose
-			msg_odometry.twist.twist.linear.x =  math.cos(drone_rpy[2])*msg_speed.vector.x + math.sin(drone_rpy[2])*msg_speed.vector.y
-			msg_odometry.twist.twist.linear.y = -math.sin(drone_rpy[2])*msg_speed.vector.x + math.cos(drone_rpy[2])*msg_speed.vector.y
+			msg_odometry.twist.twist.linear.x =  math.cos(drone_RPY[2]/180*math.pi)*msg_speed.vector.x + math.sin(drone_RPY[2]/180*math.pi)*msg_speed.vector.y
+			msg_odometry.twist.twist.linear.y = -math.sin(drone_RPY[2]/180*math.pi)*msg_speed.vector.x + math.cos(drone_RPY[2]/180*math.pi)*msg_speed.vector.y
 			msg_odometry.twist.twist.linear.z = msg_speed.vector.z
 			self.pub_odometry.publish(msg_odometry)
 		
@@ -383,13 +402,13 @@ class Anafi(threading.Thread):
 		self.drone(gimbal.set_target(
 			gimbal_id=0,
 			control_mode='position', # 'position', 'velocity'
-			yaw_frame_of_reference='relative',
+			yaw_frame_of_reference='none',
 			yaw=0.0,
 			pitch_frame_of_reference='relative', # 'absolute', 'relative', 'none'
 			pitch=msg.angular.y,
 			roll_frame_of_reference='relative',
 			roll=msg.angular.x))
-			
+
 	def switch_manual(self):
 		msg_rpyt = TwistStamped()
 		msg_rpyt.header.stamp = rospy.Time.now()
