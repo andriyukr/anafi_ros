@@ -244,16 +244,6 @@ class Anafi(threading.Thread):
 			msg_attitude.header = header
 			msg_attitude.quaternion = Quaternion(drone_quat['x'], -drone_quat['y'], -drone_quat['z'], drone_quat['w'])
 			self.pub_attitude.publish(msg_attitude)
-			
-			# TODO: move this to safeAnafi.cpp
-			r1 = R.from_quat([drone_quat['x'], -drone_quat['y'], -drone_quat['z'], drone_quat['w']])
-			drone_RPY = r1.as_euler('xyz', degrees=True)
-			msg_rpy = Vector3Stamped()
-			msg_rpy.header = header
-			msg_rpy.vector.x = drone_RPY[0]
-			msg_rpy.vector.y = drone_RPY[1]
-			msg_rpy.vector.z = drone_RPY[2]
-			self.pub_rpy.publish(msg_rpy)
 					
 			location = metadata[1]['location'] # GPS location [500.0=not available] (decimal deg)
 			msg_location = PointStamped()
@@ -310,8 +300,8 @@ class Anafi(threading.Thread):
 			msg_odometry.header = header
 			msg_odometry.child_frame_id = '/body'
 			msg_odometry.pose.pose = msg_pose.pose
-			msg_odometry.twist.twist.linear.x =  math.cos(drone_RPY[2]/180*math.pi)*msg_speed.vector.x + math.sin(drone_RPY[2]/180*math.pi)*msg_speed.vector.y
-			msg_odometry.twist.twist.linear.y = -math.sin(drone_RPY[2]/180*math.pi)*msg_speed.vector.x + math.cos(drone_RPY[2]/180*math.pi)*msg_speed.vector.y
+			msg_odometry.twist.twist.linear.x =  math.cos(drone_rpy[2])*msg_speed.vector.x + math.sin(drone_rpy[2])*msg_speed.vector.y
+			msg_odometry.twist.twist.linear.y = -math.sin(drone_rpy[2])*msg_speed.vector.x + math.cos(drone_rpy[2])*msg_speed.vector.y
 			msg_odometry.twist.twist.linear.z = msg_speed.vector.z
 			self.pub_odometry.publish(msg_odometry)
 		
