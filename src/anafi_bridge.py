@@ -295,6 +295,9 @@ class Anafi(threading.Thread):
 			msg_pose.pose.orientation = msg_attitude.quaternion
 			self.pub_pose.publish(msg_pose)
 			
+			Rot = R.from_quat([drone_quat['x'], -drone_quat['y'], -drone_quat['z'], drone_quat['w']])
+			drone_rpy = Rot.as_euler('xyz')
+			
 			# TODO: move this to safeAnafi.cpp
 			msg_odometry = Odometry()
 			msg_odometry.header = header
