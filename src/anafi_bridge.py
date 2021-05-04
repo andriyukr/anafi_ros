@@ -43,7 +43,7 @@ from scipy.spatial.transform import Rotation as R
 
 from dynamic_reconfigure.server import Server
 from olympe_bridge.cfg import setAnafiConfig
-from olympe_bridge.msg import ParrotCommand
+from olympe_bridge.msg import PilotingCommand, CameraCommand
 
 olympe.log.update_config({"loggers": {"olympe": {"level": "ERROR"}}})
 
@@ -80,10 +80,10 @@ class Anafi(threading.Thread):
 		rospy.Subscriber("/anafi/land", Empty, self.land_callback)
 		rospy.Subscriber("/anafi/emergency", Empty, self.emergency_callback)
 		rospy.Subscriber("/anafi/offboard", Bool, self.offboard_callback)
-		rospy.Subscriber("/anafi/cmd_rpyt", ParrotCommand, self.rpyt_callback)
+		rospy.Subscriber("/anafi/cmd_rpyt", PilotingCommand, self.rpyt_callback)
 		rospy.Subscriber("/anafi/cmd_vel", TwistStamped, self.moveBy_callback)
 		rospy.Subscriber("/anafi/cmd_vel", TwistStamped, self.moveTo_callback)
-		rospy.Subscriber("/anafi/cmd_camera", Twist, self.camera_callback)
+		rospy.Subscriber("/anafi/cmd_camera", CameraCommand, self.camera_callback)
 		
 		# Connect to the SkyController	
 		if rospy.get_param("/skycontroller"):
@@ -382,25 +382,30 @@ class Anafi(threading.Thread):
 			latitude=msg.twist.linear.x, # latitude (degrees)
 			longitude=msg.twist.linear.y, # longitude (degrees)
 			altitude=msg.twist.linear.z, # altitude (m)
-			heading=msg.twist.angular.z # heading relative to the North (degrees)
+			heading=msg.twist.angular.z, # heading relative to the North (degrees)
+			orientation_mode=HEADING_START # orientation mode {TO_TARGET, HEADING_START, HEADING_DURING}
 			) >> FlyingStateChanged(state="hovering", _timeout=5)
 		).wait().success()
 
 	def camera_callback(self, msg):
-		self.drone(camera.set_zoom_target(
-			cam_id=0,
-			control_mode='level', # 'level', 'velocity'
-			target=msg.linear.x)) # 1 - 3
+		#if msg.action & 0b001: # take picture
+		#if msg.action & 0b010: # start recording
+		#if msg.action & 0b100: # stop recording
 	
 		self.drone(gimbal.set_target(
 			gimbal_id=0,
-			control_mode='position', # 'position', 'velocity'
+			control_mode='position', # {'position', 'velocity'}
 			yaw_frame_of_reference='none',
 			yaw=0.0,
-			pitch_frame_of_reference='relative', # 'absolute', 'relative', 'none'
-			pitch=msg.angular.y,
+			pitch_frame_of_reference='relative', # {'absolute', 'relative', 'none'}
+			pitch=msg.pitch,
 			roll_frame_of_reference='relative',
-			roll=msg.angular.x))
+			roll=msg.roll))
+			
+		self.drone(camera.set_zoom_target(
+			cam_id=0,
+			control_mode='level', # {'level', 'velocity'}
+			target=msg.zoom)) # [1, 3]
 
 	def switch_manual(self):
 		msg_rpyt = TwistStamped()
@@ -414,6 +419,7 @@ class Anafi(threading.Thread):
 		rospy.loginfo("Control: Manual")
 			
 	def switch_offboard(self):
+		# TODO: switch to manual control if already in offboard
 		# button: 	0 = RTL, 1 = takeoff/land, 2 = back left, 3 = back right
 		# axis: 	0 = yaw, 1 = trottle, 2 = roll, 3 = pithch, 4 = camera, 5 = zoom
 		self.drone(mapper.grab(buttons=(1<<0|0<<1|1<<2|1<<3), axes=(1<<0|1<<1|1<<2|1<<3|0<<4|0<<5))) # bitfields
