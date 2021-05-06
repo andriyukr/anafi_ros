@@ -105,7 +105,7 @@ class Anafi(threading.Thread):
 		self.srv = Server(setAnafiConfig, self.reconfigure_callback)
 						
 		rate = rospy.Rate(1) # 1hz
-		while True:
+		while not rospy.is_shutdown():
 			connection = self.drone.connect()
 			if connection[0] == True:
 				break
