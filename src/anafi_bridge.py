@@ -117,7 +117,7 @@ class Anafi(threading.Thread):
 			self.switch_manual()
 					
 			# Connect to the drone
-			while True:
+			while not rospy.is_shutdown():
 				if self.drone(connection_state(state="connected", _policy="check")):
 					break
 				rospy.loginfo_throttle(10, "Connection to Anafi: " + str(self.drone.get_state(connection_state)["state"]))
