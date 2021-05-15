@@ -53,7 +53,6 @@ DRONE_IP = "192.168.42.1"
 SKYCTRL_IP = "192.168.53.1"
 
 class Anafi(threading.Thread):
-
 	def __init__(self):	
 		if rospy.get_param("/indoor"):			
 			rospy.loginfo("We are indoor")
@@ -97,79 +96,74 @@ class Anafi(threading.Thread):
 			self.drone = olympe.Drone(DRONE_IP)
 		
 		# Create listener for RC events
-		every_event_listener = EveryEventListener(self)
-		every_event_listener.subscribe()
+		self.every_event_listener = EveryEventListener(self)
 		
 		rospy.on_shutdown(self.stop)
 		
 		self.srv = Server(setAnafiConfig, self.reconfigure_callback)
 						
+		self.connect()
+				
+		# To convert OpenCV images to ROS images
+		self.bridge = CvBridge()
+		
+	def connect(self):
+		self.every_event_listener.subscribe()
+		
 		rate = rospy.Rate(1) # 1hz
-		while not rospy.is_shutdown():
+		while True:
+			self.pub_state.publish("CONNECTING")
 			connection = self.drone.connect()
-			if connection[0] == True:
+			if getattr(connection, 'OK') == True:
 				break
+			if rospy.is_shutdown():
+				exit()
 			rate.sleep()
 		
 		# Connect to the SkyController	
 		if rospy.get_param("/skycontroller"):
+			self.pub_state.publish("CONNECTED_SKYCONTROLLER")
 			rospy.loginfo("Connection to SkyController: " + getattr(connection, 'message'))
 			self.switch_manual()
 					
 			# Connect to the drone
-			while not rospy.is_shutdown():
+			while True:
 				if self.drone(connection_state(state="connected", _policy="check")):
-					break
-				rospy.loginfo_throttle(10, "Connection to Anafi: " + str(self.drone.get_state(connection_state)["state"]))
+					break				
+				if rospy.is_shutdown():
+					exit()
+				else:
+					self.pub_state.publish("SERCHING_DRONE")
+					rospy.loginfo_once("Connection to Anafi: " + str(self.drone.get_state(connection_state)["state"]))
 				rate.sleep()
+			self.pub_state.publish("CONNECTED_DRONE")			
 			rospy.loginfo("Connection to Anafi: " + str(self.drone.get_state(connection_state)["state"]))
 		# Connect to the Anafi
 		else:
+			self.pub_state.publish("CONNECTED_DRONE")
 			rospy.loginfo("Connection to Anafi: " + getattr(connection, 'message'))
 			self.switch_offboard()
-						
-		self.drone(gimbal.stop_offsets_update(gimbal_id=0)) # TODO: check this issue
-		       
-		# Record the video stream from the drone
-		#self.tempd = tempfile.mkdtemp(prefix="olympe_streaming_test_")		
-		#self.h264_frame_stats = []
-		#self.h264_stats_file = open(os.path.join(self.tempd, 'h264_stats.csv'), 'w+')
-		#self.h264_stats_writer = csv.DictWriter(self.h264_stats_file, ['fps', 'bitrate'])
-		#self.h264_stats_writer.writeheader()	
-		#self.drone.set_streaming_output_files(
-		#	h264_data_file=os.path.join(self.tempd, 'h264_data.264'),
-		#	h264_meta_file=os.path.join(self.tempd, 'h264_metadata.json'))
-		
+			
 		self.frame_queue = queue.Queue()
 		self.flush_queue_lock = threading.Lock()
 
 		# Setup the callback functions to do some live video processing
 		self.drone.set_streaming_callbacks(
 			raw_cb=self.yuv_frame_cb,
-			h264_cb=self.h264_frame_cb,
-			start_cb=self.start_cb,
-			end_cb=self.end_cb,
-			flush_raw_cb=self.flush_cb,
+			flush_raw_cb=self.flush_cb
 		)
+		self.drone.start_video_streaming()		
 		
-		# Start video streaming
-		self.drone.start_video_streaming()
-		
-		# To convert OpenCV images to ROS images
-		self.bridge = CvBridge()
-		
-	def start(self):
-		rospy.loginfo("anafi_bridge is running...")
+	def disconnect(self):
+		self.pub_state.publish("DISCONNECTING")
+		self.every_event_listener.unsubscribe()
+		#self.drone.stop_video_streaming()
+		self.drone.disconnect()
+		self.pub_state.publish("DISCONNECTED")
 		
 	def stop(self):
-		rospy.loginfo("anafi_bridge is stopping...")
-	
-		every_event_listener.unsubscribe()
-		
-		# Properly stop the video stream and disconnect
-		self.drone.stop_video_streaming()
-		self.drone.disconnect()
-		self.h264_stats_file.close()
+		rospy.loginfo("AnafiBridge is stopping...")
+		self.disconnect()
 						
 	def reconfigure_callback(self, config, level):
 		if level == -1 or level == 1:
@@ -185,6 +179,7 @@ class Anafi(threading.Thread):
 			self.max_vertical_speed = config['max_vertical_speed']
 			self.max_rotation_speed = config['max_yaw_rotation_speed']
 		if level == -1 or level == 2:
+			self.gimbal_frame = 'absolute' if config['gimbal_compensation'] else 'relative'
 			self.drone(gimbal.set_max_speed(
 				gimbal_id=0,
 				yaw=0, 
@@ -193,9 +188,8 @@ class Anafi(threading.Thread):
 				)).wait()
 		return config
 		
-	def yuv_frame_cb(self, yuv_frame):
-        # This function will be called by Olympe for each decoded YUV frame.
-        # :type yuv_frame: olympe.VideoFrame
+	# This function will be called by Olympe for each decoded YUV frame.
+	def yuv_frame_cb(self, yuv_frame):      
 		yuv_frame.ref()
 		self.frame_queue.put_nowait(yuv_frame)
 
@@ -205,18 +199,10 @@ class Anafi(threading.Thread):
 				self.frame_queue.get_nowait().unref()
 		return True
 
-	def start_cb(self):
-		pass
-
-	def end_cb(self):
-		pass
-		
-	def h264_frame_cb(self, h264_frame):
-		pass
-
 	def yuv_callback(self, yuv_frame):
 		# Use OpenCV to convert the yuv frame to RGB
 		info = yuv_frame.info() # the VideoFrame.info() dictionary contains some useful information such as the video resolution
+		rospy.logdebug_throttle(10, "yuv_frame.info = " + str(info))
 		cv2_cvt_color_flag = {
 			olympe.PDRAW_YUV_FORMAT_I420: cv2.COLOR_YUV2BGR_I420,
 			olympe.PDRAW_YUV_FORMAT_NV12: cv2.COLOR_YUV2BGR_NV12,
@@ -229,9 +215,9 @@ class Anafi(threading.Thread):
 
 		# yuv_frame.vmeta() returns a dictionary that contains additional metadata from the drone (GPS coordinates, battery percentage, ...)
 		metadata = yuv_frame.vmeta()
-		rospy.logdebug_throttle(10, "metadata = " + str(metadata))
-			
-		if metadata != {}:
+		rospy.logdebug_throttle(10, "yuv_frame.vmeta = " + str(metadata))
+				
+		if metadata[1] != None:
 			header = Header()
 			header.stamp = rospy.Time.now()
 			header.frame_id = '/body'
@@ -308,35 +294,37 @@ class Anafi(threading.Thread):
 			msg_odometry.twist.twist.linear.y = -math.sin(drone_rpy[2])*msg_speed.vector.x + math.cos(drone_rpy[2])*msg_speed.vector.y
 			msg_odometry.twist.twist.linear.z = msg_speed.vector.z
 			self.pub_odometry.publish(msg_odometry)
-		
-		# log battery percentage
-		if battery_percentage >= 30:
-			if battery_percentage%10 == 0:
-				rospy.loginfo_throttle(100, "Battery level: " + str(battery_percentage) + "%")
-		else:
-			if battery_percentage >= 20:
-				rospy.logwarn_throttle(10, "Low battery: " + str(battery_percentage) + "%")
+			
+			# log battery percentage
+			if battery_percentage >= 30:
+				if battery_percentage%10 == 0:
+					rospy.loginfo_throttle(100, "Battery level: " + str(battery_percentage) + "%")
 			else:
-				if battery_percentage >= 10:
-					rospy.logerr_throttle(1, "Critical battery: " + str(battery_percentage) + "%")
+				if battery_percentage >= 20:
+					rospy.logwarn_throttle(10, "Low battery: " + str(battery_percentage) + "%")
 				else:
-					rospy.logfatal_throttle(0.1, "Empty battery: " + str(battery_percentage) + "%")
+					if battery_percentage >= 10:
+						rospy.logerr_throttle(1, "Critical battery: " + str(battery_percentage) + "%")
+					else:
+						rospy.logfatal_throttle(0.1, "Empty battery: " + str(battery_percentage) + "%")		
 					
-		# log signal strength
-		if wifi_rssi >= -70:
+			# log signal strength
 			if wifi_rssi <= -60:
-				rospy.loginfo_throttle(100, "Signal strength: " + str(wifi_rssi) + "dBm")
-		else:
-			if wifi_rssi >= -80:
-				rospy.logwarn_throttle(10, "Poor signal: " + str(wifi_rssi) + "dBm")
-			else:
-				if wifi_rssi >= -90:
-					rospy.logerr_throttle(1, "Weak low signal:" + str(wifi_rssi) + "dBm")
+				if wifi_rssi >= -70:
+					rospy.loginfo_throttle(100, "Signal strength: " + str(wifi_rssi) + "dBm")
 				else:
-					rospy.logfatal_throttle(0.1, "Critical signal: " + str(wifi_rssi) + "dBm")
-
+					if wifi_rssi >= -80:
+						rospy.logwarn_throttle(10, "Weak signal: " + str(wifi_rssi) + "dBm")
+					else:
+						if wifi_rssi >= -90:
+							rospy.logerr_throttle(1, "Unreliable signal:" + str(wifi_rssi) + "dBm")
+						else:
+							rospy.logfatal_throttle(0.1, "Unusable signal: " + str(wifi_rssi) + "dBm")
+		else:
+			rospy.logwarn("Packet lost!")
+		
 	def takeoff_callback(self, msg):		
-		self.drone(TakeOff() >> FlyingStateChanged(state="hovering", _timeout=5)).wait() # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.Piloting.TakeOff
+		self.drone(TakeOff() >> FlyingStateChanged(state="hovering", _timeout=10)).wait() # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.Piloting.TakeOff
 		rospy.logwarn("Takeoff")
 
 	def land_callback(self, msg):		
@@ -352,13 +340,7 @@ class Anafi(threading.Thread):
 			self.switch_manual()
 		else:
 			self.switch_offboard()
-			
-	def bound(self, value, value_min, value_max):
-		return min(max(value, value_min), value_max)
-		
-	def bound_percentage(self, value):
-		return self.bound(value, -100, 100)
-				
+						
 	def rpyt_callback(self, msg):
 		self.drone(PCMD( # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.Piloting.PCMD
 			flag=1,
@@ -368,7 +350,7 @@ class Anafi(threading.Thread):
 			gaz=int(self.bound_percentage(msg.gaz/self.max_vertical_speed*100)), # vertical speed [-100, 100] (% of max vertical speed)
 			timestampAndSeqNum=0)) # for debug only
 
-	# NOT USED YET	
+	# TODO: NOT USED YET	
 	def moveBy_callback(self, msg):		
 		assert self.drone(moveBy( # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.Piloting.moveBy
 			dX=msg.dx, # displacement along the front axis (m)
@@ -378,7 +360,7 @@ class Anafi(threading.Thread):
 			) >> FlyingStateChanged(state="hovering", _timeout=1)
 		).wait().success()
 	
-	# NOT USED YET	
+	# TODO: NOT USED YET	
 	def moveTo_callback(self, msg):		
 		assert self.drone(moveTo( # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.Piloting.moveTo
 			latitude=msg.latitude, # latitude (degrees)
@@ -402,9 +384,9 @@ class Anafi(threading.Thread):
 			control_mode='position', # {'position', 'velocity'}
 			yaw_frame_of_reference='none',
 			yaw=0.0,
-			pitch_frame_of_reference='relative', # {'absolute', 'relative', 'none'}
+			pitch_frame_of_reference=self.gimbal_frame, # {'absolute', 'relative', 'none'}
 			pitch=msg.pitch,
-			roll_frame_of_reference='relative',
+			roll_frame_of_reference=self.gimbal_frame, # {'absolute', 'relative', 'none'}
 			roll=msg.roll))
 			
 		self.drone(camera.set_zoom_target( # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.messages.camera.set_zoom_target
@@ -432,6 +414,12 @@ class Anafi(threading.Thread):
 			rospy.loginfo("Control: Offboard")
 		else:
 			self.switch_manual()
+			
+	def bound(self, value, value_min, value_max):
+		return min(max(value, value_min), value_max)
+		
+	def bound_percentage(self, value):
+		return self.bound(value, -100, 100)
 
 	def run(self): 
 		rate = rospy.Rate(100) # 100hz
@@ -445,24 +433,16 @@ class Anafi(threading.Thread):
 		rospy.logdebug('NoFlyOverMaxDistance = %i', self.drone.get_state(NoFlyOverMaxDistanceChanged)["shouldNotFlyOver"])
 		rospy.logdebug('BankedTurn = %i', self.drone.get_state(BankedTurnChanged)["state"])
 		
-		while not rospy.is_shutdown():		
-			with self.flush_queue_lock:
-				try:
-					yuv_frame = self.frame_queue.get(timeout=0.01)
-				except queue.Empty:
-					continue
-				try:
-					self.yuv_callback(yuv_frame)
-				except Exception:
-					# Continue popping frame from the queue even if it fails to show one frame
-					traceback.print_exc()
-					continue
-				finally:
-					# Unref the yuv frame to avoid starving the video buffer pool
-					yuv_frame.unref()
-				
+		while not rospy.is_shutdown():
+			connection = self.drone.connection_state()
+			if getattr(connection, 'OK') == False:
+				rospy.logfatal(getattr(connection, 'message'))
+				self.disconnect()
+				self.connect()
+			
 			# SLOW -- 5Hz			
 			#attitude = self.drone.get_state(AttitudeChanged) # attitude
+			#rospy.loginfo("Attitude: " + str(attitude))
 			#msg_rpy = Vector3Stamped()
 			#msg_rpy.header.seq = self.seq
 			#msg_rpy.header.stamp = rospy.Time.now()
@@ -472,6 +452,22 @@ class Anafi(threading.Thread):
 			#msg_rpy.vector.z = -attitude['yaw']/math.pi*180
 			#self.pub_rpy.publish(msg_rpy)
 			
+			with self.flush_queue_lock:
+				try:					
+					yuv_frame = self.frame_queue.get(timeout=0.01)
+				except queue.Empty:
+					continue
+				
+				try:
+					self.yuv_callback(yuv_frame)
+				except Exception:
+					# Continue popping frame from the queue even if it fails to show one frame
+					traceback.print_exc()
+					continue
+				finally:
+					# Unref the yuv frame to avoid starving the video buffer pool
+					yuv_frame.unref()
+								
 			rate.sleep()
 
 class EveryEventListener(olympe.EventListener):
@@ -537,8 +533,10 @@ class EveryEventListener(olympe.EventListener):
 
 if __name__ == '__main__':
 	rospy.init_node('anafi_bridge', anonymous = False)
+	rospy.loginfo("AnafiBridge is running...")
 	anafi = Anafi()	
 	try:
 		anafi.run()
 	except rospy.ROSInterruptException:
+		traceback.print_exc()
 		pass
