@@ -26,6 +26,8 @@ This package has been tested with **python3** in **ROS Melodic**/**Ubuntu 18.04*
       git config --global user.name "Your Name"
       repo init -u https://github.com/Parrot-Developers/groundsdk-manifest.git
       repo sync
+      ./products/olympe/linux/env/postinst
+      ./build.sh -p olympe-linux -A all final -j
     
 ### Troubleshooting
 
@@ -74,6 +76,13 @@ Create a symbolic link to python3:
 Downgraded aenum:
 
     pip3 install --upgrade aenum==2.2.5
+
+#### Issue:
+    ModuleNotFoundError: No module named 'ulog'
+#### Solution:
+Downgraded aenum:
+
+    pip install ulog
 
 #### Issue:
     AttributeError: 'module' object has no attribute 'abc'
