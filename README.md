@@ -125,6 +125,6 @@ Install OpenCV for python:
 #### Issue:
     ModuleNotFoundError: No module named 'scipy'
 #### Solution:
-Install OpenCV for python:
+Install SciPy for python:
 
     pip install scipy
