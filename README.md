@@ -4,8 +4,8 @@ This ROS package contains interface to Olympe SDK. Currently, it supports only t
 ## Overview
 
 **Author:** Andriy Sarabakha<br />
-**Affiliation:** [Technical University of Munich (TUM)](https://www.tum.de/en/), Germany<br />
-**Maintainer:** Andriy Sarabakha, andriy.sarabakha@tum.de
+**Affiliation:** [Nanyang Technological University (NTU)](https://www.ntu.edu.sg), Singapore<br />
+**Maintainer:** Andriy Sarabakha, andriy.sarabakha@ntu.edu.sg
 
 **Keywords:** Parrot, UAV, controller
 
@@ -17,21 +17,21 @@ This package has been tested with **python3** in **ROS Melodic**/**Ubuntu 18.04*
 
 ### Dependencies
 
-- [Parrot Ground SDK](https://developer.parrot.com/) - SDK for Parrot drones:
+- [Parrot Olympe](https://developer.parrot.com/docs/olympe/installation.html) - SDK for Parrot drones:
+      
+      pip install parrot-olympe
+      
+- [OpenCV](https://pypi.org/project/opencv-python/) - library for real-time computer vision:
 
-      mkdir -p ~/code/parrot-groundsdk
-      cd ~/code/parrot-groundsdk
-      sudo snap install git-repo
-      git config --global user.email "you@example.com"
-      git config --global user.name "Your Name"
-      repo init -u https://github.com/Parrot-Developers/groundsdk-manifest.git
-      repo sync
-      ./products/olympe/linux/env/postinst
-      ./build.sh -p olympe-linux -A all final -j
+      pip install opencv-python
+    
+- [SciPy](https://scipy.org/install/) - library for scientific and technical computing:
+
+      pip install scipy
     
 ### Troubleshooting
 
-#### Issue:
+<!--#### Issue:
     pkg_resources.DistributionNotFound: The 'osrf-pycommon>0.1.1' distribution was not found and is required by catkin-tools
 #### Solution:
 Install python3-catkin-tools:
@@ -50,7 +50,7 @@ Use Google Repo binary:
     mkdir -p ~/.bin
     PATH="${HOME}/.bin:${PATH}"
     curl https://storage.googleapis.com/git-repo-downloads/repo > ~/.bin/repo
-    chmod a+rx ~/.bin/repo
+    chmod a+rx ~/.bin/repo-->
     
 #### Issue:
     /usr/bin/env: ‘python’: No such file or directory
@@ -68,7 +68,7 @@ Create a symbolic link to python3:
     source ~/code/parrot-groundsdk/./products/olympe/linux/env/shell
     python -c 'import olympe; print("Installation OK")'
     
-### Troubleshooting
+<!--### Troubleshooting
 
 #### Issue:
     ModuleNotFoundError: No module named 'olympe.messages'
@@ -90,7 +90,7 @@ Downgraded aenum:
 Set python3 as default:
 
     echo 'alias python=python3' >> ~/.bash_aliases
-    source ~/.bash_aliases
+    source ~/.bash_aliases-->
     
 ## Clone
 
@@ -104,7 +104,7 @@ Clone the latest version from this repository into your catkin workspace using:
     source ~/code/parrot-groundsdk/./products/olympe/linux/env/shell
     roslaunch olympe_bridge anafi.launch
 
-### Troubleshooting
+<!--### Troubleshooting
 
 #### Issue:
     ModuleNotFoundError: No module named 'roslaunch'
@@ -127,4 +127,4 @@ Install OpenCV for python:
 #### Solution:
 Install SciPy for python:
 
-    pip install scipy
+    pip install scipy-->
