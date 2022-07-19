@@ -121,3 +121,10 @@ Set up ROS environment:
 Install OpenCV for python:
 
     pip install opencv-python
+    
+#### Issue:
+    ModuleNotFoundError: No module named 'scipy'
+#### Solution:
+Install OpenCV for python:
+
+    pip install scipy
