@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+
+<launch>	
+	<env name="ROSCONSOLE_FORMAT" value="[${severity}] [${time}] [${node}]: ${message}"/>
+
+	<node name="skycontroller" pkg="olympe_bridge" type="skycontroller3" output="screen"/>
+</launch>

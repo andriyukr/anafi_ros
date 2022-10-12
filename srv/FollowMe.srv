@@ -1,0 +1,9 @@
+byte mode 			# followme mode {0/none, 1/look_at, 2/geographic, 3/relative, 4/leash}
+int8 horizontal 		# horizontal position in the video (%) from left to right
+int8 vertical 			# vertical position in the video (%) from bottom to top
+float32 target_azimuth 	# horizontal north-drone-target angle (rad)
+float32 target_elevation 	# vertical angle horizon-drone-target (rad)
+float32 change_of_scale 	# normalized relative radial speed (1/s)
+byte confidence_index 		# confidence index of the detection [0/worst, 255/best]
+bool is_new_selection 		# selection is new {True,False}
+---

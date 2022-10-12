@@ -1,11 +1,27 @@
 <?xml version="1.0"?>
 
 <launch>
-	<arg name="indoor" default="true"/>
+	<arg name="name" default="anafi"/>
+	<arg name="model" default="4k"/> <!-- {"4k", "thermal", "usa", "ai"} -->
+	<arg name="ip" default="192.168.53.1"/> <!-- Anafi: "192.168.42.1", SkyController: "192.168.53.1" -->
 	<arg name="skycontroller" default="true"/>
+	<arg name="rest_api_version" default="1"/>
+	<arg name="drone_serial" default=""/> <!-- PS728000BA8G055937, PI040416BA8G055937 -->
+	<arg name="wifi_key" default=""/> <!-- JP2GZQNQTTHZ -->
 
-	<param name="indoor" type="boolean" value="$(arg indoor)" />
-	<param name="skycontroller" type="boolean" value="$(arg skycontroller)" />
+	<env name="ROSCONSOLE_FORMAT" value="[${severity}] [${time}] [${node}]: ${message}"/>
+	
+	<group ns="$(arg name)">
+		<param name="name" type="string" value="$(arg name)"/>
+		<param name="model" type="string" value="$(arg model)"/>
+		<param name="ip" type="string" value="$(arg ip)"/>
+		<param name="skycontrollerEnabled" type="boolean" value="$(arg skycontroller)"/>
+		<param name="rest_api_version" type="string" value="$(arg rest_api_version)"/>
+		<param name="drone_serial" type="string" value="$(arg drone_serial)"/>
+		<param name="wifi_key" type="string" value="$(arg wifi_key)"/>
+		
+		<node name="set_anafi_log_level" pkg="rosservice" type="rosservice" args="call --wait /$(arg name)/anafi/set_logger_level 'rosout' 'info'"/>
 
-	<node name="anafi_bridge" pkg="olympe_bridge" type="anafi_bridge.py" output="screen"/>
+		<node name="anafi" pkg="olympe_bridge" type="anafi" output="screen"/>
+	</group>
 </launch>

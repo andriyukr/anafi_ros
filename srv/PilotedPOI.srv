@@ -1,0 +1,5 @@
+float64 latitude	# latitude to look at [deg]
+float64 longitude 	# longitude to look at [deg]
+float32 altitude	# altitude to look at [m]
+bool locked_gimbal 	# true/Gimbal is locked on the POI, false/Gimbal is freely controllable
+---

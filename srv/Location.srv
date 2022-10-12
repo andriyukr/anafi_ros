@@ -1,0 +1,4 @@
+float64 latitude	# latitude [deg]
+float64 longitude 	# longitude [deg]
+float32 altitude	# altitude [m]
+---
