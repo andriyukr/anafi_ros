@@ -29,18 +29,27 @@ class EventListenerSkyController(olympe.EventListener):
 	def __init__(self, skyctrl):
 		self.skyctrl = skyctrl
 		super().__init__(skyctrl.skyctrl)
+		
+		# Publishers
+		self.skyctrl.pub_skyctrl_attitude = rospy.Publisher("skycontroller/attitude", QuaternionStamped, queue_size=1)
+		self.skyctrl.pub_skyctrl_rpy = rospy.Publisher("skycontroller/rpy", Vector3Stamped, queue_size=1)
+		
+		# Messages
+		self.header = Header()
+		self.msg_attitude = QuaternionStamped()
+		self.msg_rpy = Vector3Stamped()
 	
 	##########  CALLBACKS  ##########
 	# SkyController buttons listener
 	@olympe.listen_event(grab_button_event(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_mapper.html#olympe.messages.mapper.grab_button_event
 	def on_grab_button_event(self, event, scheduler):
-		# button: 	0 = RTL, 1 = takeoff/land, 2 = reset camera, 3 = reset zoom
+		# button: 	0 = return home, 1 = takeoff/land, 2 = reset camera, 3 = reset zoom
 		# axis_button:	4 = max CCW yaw, 5 = max CW yaw, 6 = max throttle, 7 = min throttle
 		# 		8 = min roll, 9 = max roll, 10 = min pitch, 11 = max pitch
 		# 		12 = max camera down, 13 = max camera up, 14 = min zoom, 15 = max zoom
 		if event.args["event"] == button_event.press:
-			if event.args["button"] == 0:  # RTL button
-				self.skyctrl.msg_skycontroller.RTL = True
+			if event.args["button"] == 0:  # return home button
+				self.skyctrl.msg_skycontroller.return_home = True
 			elif event.args["button"] == 1:  # takeoff/land button
 				self.skyctrl.msg_skycontroller.takeoff_land = True
 			elif event.args["button"] == 2:  # reset camera button
@@ -70,23 +79,20 @@ class EventListenerSkyController(olympe.EventListener):
 	def onAttitudeChanged(self, event, scheduler):
 		attitude = event.args
 
-		header = Header()
-		header.stamp = rospy.Time.now()
-		header.frame_id = '/world'
+		self.header.stamp = rospy.Time.now()
+		self.header.frame_id = '/world'
 
-		msg_attitude = QuaternionStamped()
-		msg_attitude.header = header
-		msg_attitude.quaternion = Quaternion(attitude['q1'], -attitude['q2'], -attitude['q3'], attitude['q0'])
-		self.skyctrl.pub_skyctrl_attitude.publish(msg_attitude)
+		self.msg_attitude.header = self.header
+		self.msg_attitude.quaternion = Quaternion(attitude['q1'], -attitude['q2'], -attitude['q3'], attitude['q0'])
+		self.skyctrl.pub_skyctrl_attitude.publish(self.msg_attitude)
 
 		quaternion = [attitude['q1'], -attitude['q2'], -attitude['q3'], attitude['q0']]
 		(roll, pitch, yaw) = euler_from_quaternion(quaternion)
-		msg_rpy = Vector3Stamped()
-		msg_rpy.header = header
-		msg_rpy.vector.x = roll*180/math.pi
-		msg_rpy.vector.y = pitch*180/math.pi
-		msg_rpy.vector.z = yaw*180/math.pi
-		self.skyctrl.pub_skyctrl_rpy.publish(msg_rpy)
+		self.msg_rpy.header = self.header
+		self.msg_rpy.vector.x = roll*180/math.pi
+		self.msg_rpy.vector.y = pitch*180/math.pi
+		self.msg_rpy.vector.z = yaw*180/math.pi
+		self.skyctrl.pub_skyctrl_rpy.publish(self.msg_rpy)
 			
 	# All other events
 	@olympe.listen_event()

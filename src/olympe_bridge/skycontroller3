@@ -22,7 +22,7 @@ from olympe.messages.skyctrl.CoPilotingState import pilotingSource
 from olympe.messages import mapper
 from olympe.enums.mapper import button_event
 
-from anafi_autonomy.msg import SkyControllerCommand
+from anafi_autonomy.msg import SkycontrollerCommand
 
 olympe.log.update_config({"loggers": {"olympe": {"level": "ERROR"}}})
 
@@ -30,9 +30,10 @@ SKYCTRL_IP = "192.168.53.1"
 
 
 class SkyController3(threading.Thread):
-	def __init__(self):						
+	def __init__(self):
+		# Publishers					
 		self.pub_state = rospy.Publisher("/skycontroller/state", String, queue_size=1)
-		self.pub_skycontroller = rospy.Publisher("/skycontroller/command", SkyControllerCommand, queue_size=1)
+		self.pub_skycontroller = rospy.Publisher("/skycontroller/command", SkycontrollerCommand, queue_size=1)
 		
 		# Connect to the SkyController		
 		self.skyctrl = olympe.SkyController(SKYCTRL_IP)
@@ -40,7 +41,7 @@ class SkyController3(threading.Thread):
 		# Create listener for RC events
 		self.every_event_listener = anafi_autonomy.EventListener(self)
 		
-		self.msg_skycontroller = SkyControllerCommand()
+		self.msg_skycontroller = SkycontrollerCommand()
 		self.msg_skycontroller.header.frame_id = '/body'
 		
 		rospy.on_shutdown(self.stop)
@@ -58,7 +59,7 @@ class SkyController3(threading.Thread):
 			self.pub_state.publish("CONNECTING")
 			rospy.loginfo("Connecting to SkyController");
 			connection = self.skyctrl.connect()
-			if getattr(connection, 'OK') == True:
+			if getattr(connection, 'OK'):
 				break
 			if rospy.is_shutdown():
 				exit()
@@ -85,7 +86,7 @@ class SkyController3(threading.Thread):
 		
 	def disconnect(self):
 		self.pub_state.publish("DISCONNECTING")
-		self.msg_skycontroller = SkyControllerCommand()
+		self.msg_skycontroller = SkycontrollerCommand()
 		self.msg_skycontroller.header.stamp = rospy.Time.now()
 		self.pub_skycontroller.publish(self.msg_skycontroller)
 		
@@ -102,7 +103,7 @@ class SkyController3(threading.Thread):
 		rate = rospy.Rate(10) # 10hz			
 		while not rospy.is_shutdown():
 			connection = self.skyctrl.connect()
-			if getattr(connection, 'OK') == False:
+			if not getattr(connection, 'OK'):
 				rospy.logfatal(getattr(connection, 'message'))
 				self.disconnect()
 				self.connect()
@@ -111,7 +112,7 @@ class SkyController3(threading.Thread):
 			self.pub_skycontroller.publish(self.msg_skycontroller)
 			
 			# Publish button pressing event only once
-			self.msg_skycontroller.RTL = False
+			self.msg_skycontroller.return_home = False
 			self.msg_skycontroller.takeoff_land = False
 			self.msg_skycontroller.reset_camera = False
 			self.msg_skycontroller.reset_zoom = False	

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 
-import olympe
 import rospy
 import math
+import olympe
 
+from std_msgs.msg import Float32, UInt8, UInt64
 from geometry_msgs.msg import Vector3Stamped
 from sensor_msgs.msg import NavSatFix
 
@@ -54,6 +55,8 @@ from olympe.messages.battery import voltage
 from olympe.messages.follow_me import target_trajectory
 from olympe.messages.gimbal import attitude as gimbal_attitude
 
+from olympe_bridge.msg import TargetTrajectory
+
 
 def print_event(event):
     # Here we're just serializing an event object and truncate the result if necessary before printing it.
@@ -77,6 +80,24 @@ class EventListenerAnafi(olympe.EventListener):
 	def __init__(self, drone):
 		self.drone = drone
 		super().__init__(drone.drone)
+		
+		# Publishers
+		self.drone.pub_zoom = rospy.Publisher("camera/zoom", Float32, queue_size=1)
+		self.drone.pub_gps_satellites = rospy.Publisher("drone/gps/satellites", UInt8, queue_size=1)
+		self.drone.pub_altitude_above_TO = rospy.Publisher("drone/altitude_above_TO", Float32, queue_size=1)
+		self.drone.pub_rpy_slow = rospy.Publisher("drone/rpy_slow", Vector3Stamped, queue_size=1)
+		self.drone.pub_gps_location = rospy.Publisher("drone/gps/location", NavSatFix, queue_size=1)
+		self.drone.pub_battery_voltage = rospy.Publisher("battery/voltage", Float32, queue_size=1)
+		self.drone.pub_target_trajectory = rospy.Publisher("target/trajectory", TargetTrajectory, queue_size=1)
+		self.drone.pub_gimbal_relative = rospy.Publisher("gimbal/relative", Vector3Stamped, queue_size=1)
+		self.drone.pub_gimbal_absolute = rospy.Publisher("gimbal/absolute", Vector3Stamped, queue_size=1)
+		self.drone.pub_media_available = rospy.Publisher("media/available", UInt64, queue_size=1)
+
+		# Messages
+		self.msg_attitude = Vector3Stamped()
+		self.msg_gps_location = NavSatFix()
+		self.msg_trajectory = TargetTrajectory()
+		self.msg_gimbal = Vector3Stamped()
 
 	""" 
 	FATAL ERRORS 
@@ -282,42 +303,40 @@ class EventListenerAnafi(olympe.EventListener):
 	@olympe.listen_event(AttitudeChanged(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.PilotingState.AttitudeChanged
 	def onAttitudeChanged(self, event, scheduler):  # publishes at lower rate (5Hz) than 'pub_rpy' (30Hz) but has higher reaction time (approx. 100ms faster)
 		attitude = event.args
-		msg_attitude = Vector3Stamped()
-		msg_attitude.header.stamp = rospy.Time.now()
-		msg_attitude.header.frame_id = '/world'
-		msg_attitude.vector.x = attitude['roll']*180/math.pi
-		msg_attitude.vector.y = -attitude['pitch']*180/math.pi
-		msg_attitude.vector.z = -attitude['yaw']*180/math.pi
-		self.drone.pub_rpy_slow.publish(msg_attitude)
+		self.msg_attitude.header.stamp = rospy.Time.now()
+		self.msg_attitude.header.frame_id = '/world'
+		self.msg_attitude.vector.x = attitude['roll']*180/math.pi
+		self.msg_attitude.vector.y = -attitude['pitch']*180/math.pi
+		self.msg_attitude.vector.z = -attitude['yaw']*180/math.pi
+		self.drone.pub_rpy_slow.publish(self.msg_attitude)
 
 	@olympe.listen_event(GpsLocationChanged(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.PilotingState.GpsLocationChanged
 	def onGpsLocationChanged(self, event, scheduler):
 		gps_location = event.args
-		msg_gps_location = NavSatFix()
-		msg_gps_location.header.stamp = rospy.Time.now()
-		msg_gps_location.header.frame_id = '/world'
-		msg_gps_location.status.status = \
-			(msg_gps_location.status.STATUS_FIX if self.drone.gps_fixed else msg_gps_location.status.STATUS_NO_FIX) # https://docs.ros.org/en/api/sensor_msgs/html/msg/NavSatStatus.html
+		self.msg_gps_location.header.stamp = rospy.Time.now()
+		self.msg_gps_location.header.frame_id = '/world'
+		self.msg_gps_location.status.status = \
+			(self.msg_gps_location.status.STATUS_FIX if self.drone.gps_fixed else self.msg_gps_location.status.STATUS_NO_FIX) # https://docs.ros.org/en/api/sensor_msgs/html/msg/NavSatStatus.html
 		if self.drone.model == "4k" or self.drone.model == "thermal":
-			msg_gps_location.status.service = \
-				msg_gps_location.status.SERVICE_GPS + \
-				msg_gps_location.status.SERVICE_GLONASS;
+			self.msg_gps_location.status.service = \
+				self.msg_gps_location.status.SERVICE_GPS + \
+				self.msg_gps_location.status.SERVICE_GLONASS;
 		if self.drone.model == "usa" or self.drone.model == "ai":
-			msg_gps_location.status.service = \
-				msg_gps_location.status.SERVICE_GPS + \
-				msg_gps_location.status.SERVICE_GLONASS + \
-				msg_gps_location.status.SERVICE_GALILEO;
-		msg_gps_location.latitude = (gps_location['latitude'] if gps_location['latitude'] != 500 else float('nan'))
-		msg_gps_location.longitude = (gps_location['longitude'] if gps_location['longitude'] != 500 else float('nan'))
-		msg_gps_location.altitude = (gps_location['altitude'] if gps_location['altitude'] != 500 else float('nan'))
-		msg_gps_location.position_covariance[0] = \
+			self.msg_gps_location.status.service = \
+				self.msg_gps_location.status.SERVICE_GPS + \
+				self.msg_gps_location.status.SERVICE_GLONASS + \
+				self.msg_gps_location.status.SERVICE_GALILEO;
+		self.msg_gps_location.latitude = (gps_location['latitude'] if gps_location['latitude'] != 500 else float('nan'))
+		self.msg_gps_location.longitude = (gps_location['longitude'] if gps_location['longitude'] != 500 else float('nan'))
+		self.msg_gps_location.altitude = (gps_location['altitude'] if gps_location['altitude'] != 500 else float('nan'))
+		self.msg_gps_location.position_covariance[0] = \
 			(math.sqrt(gps_location['latitude_accuracy']) if gps_location['latitude_accuracy'] > 0 else float('nan'))
-		msg_gps_location.position_covariance[4] = \
+		self.msg_gps_location.position_covariance[4] = \
 			(math.sqrt(gps_location['longitude_accuracy']) if gps_location['longitude_accuracy'] > 0 else float('nan'))
-		msg_gps_location.position_covariance[8] = \
+		self.msg_gps_location.position_covariance[8] = \
 			(math.sqrt(gps_location['altitude_accuracy']) if gps_location['altitude_accuracy'] > 0 else float('nan'))
-		msg_gps_location.position_covariance_type = msg_gps_location.COVARIANCE_TYPE_DIAGONAL_KNOWN
-		self.drone.pub_gps_location.publish(msg_gps_location)
+		self.msg_gps_location.position_covariance_type = msg_gps_location.COVARIANCE_TYPE_DIAGONAL_KNOWN
+		self.drone.pub_gps_location.publish(self.msg_gps_location)
 
 	@olympe.listen_event(voltage(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_battery.html#olympe.messages.battery.voltage
 	def onBatteryVoltage(self, event, scheduler):
@@ -327,32 +346,30 @@ class EventListenerAnafi(olympe.EventListener):
 	def on_target_trajectory(self, event, scheduler):
 		trajectory = event.args
 		rospy.loginfo('target_trajectory: ' + str(trajectory))
-		msg_trajectory = TargetTrajectory()
-		msg_trajectory.header.stamp = rospy.Time.now()
-		msg_trajectory.header.frame_id = '/world'
-		msg_trajectory.latitude = trajectory['latitude']
-		msg_trajectory.longitude = trajectory['longitude']
-		msg_trajectory.altitude = trajectory['altitude']
-		msg_trajectory.north_speed = trajectory['north_speed']
-		msg_trajectory.east_speed = trajectory['east_speed']
-		msg_trajectory.down_speed = trajectory['down_speed']
-		self.drone.pub_target_trajectory.publish(msg_trajectory)
+		self.msg_trajectory.header.stamp = rospy.Time.now()
+		self.msg_trajectory.header.frame_id = '/world'
+		self.msg_trajectory.latitude = trajectory['latitude']
+		self.msg_trajectory.longitude = trajectory['longitude']
+		self.msg_trajectory.altitude = trajectory['altitude']
+		self.msg_trajectory.north_speed = trajectory['north_speed']
+		self.msg_trajectory.east_speed = trajectory['east_speed']
+		self.msg_trajectory.down_speed = trajectory['down_speed']
+		self.drone.pub_target_trajectory.publish(self.msg_trajectory)
 
 	@olympe.listen_event(gimbal_attitude(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_gimbal.html#olympe.messages.gimbal.attitude
 	def onGimbalAttitude(self, event, scheduler):
 		gimbal = event.args
-		msg_gimbal = Vector3Stamped()
-		msg_gimbal.header.stamp = rospy.Time.now()
-		msg_gimbal.header.frame_id = '/world'
-		msg_gimbal.vector.x = gimbal['roll_absolute']
-		msg_gimbal.vector.y = -gimbal['pitch_absolute']
-		msg_gimbal.vector.z = -gimbal['yaw_absolute']
-		self.drone.pub_gimbal_absolute.publish(msg_gimbal)
-		msg_gimbal.header.frame_id = 'body'
-		msg_gimbal.vector.x = gimbal['roll_relative']
-		msg_gimbal.vector.y = -gimbal['pitch_relative']
-		msg_gimbal.vector.z = -gimbal['yaw_relative']
-		self.drone.pub_gimbal_relative.publish(msg_gimbal)
+		self.msg_gimbal.header.stamp = rospy.Time.now()
+		self.msg_gimbal.header.frame_id = '/world'
+		self.msg_gimbal.vector.x = gimbal['roll_absolute']
+		self.msg_gimbal.vector.y = -gimbal['pitch_absolute']
+		self.msg_gimbal.vector.z = -gimbal['yaw_absolute']
+		self.drone.pub_gimbal_absolute.publish(self.msg_gimbal)
+		self.msg_gimbal.header.frame_id = 'body'
+		self.msg_gimbal.vector.x = gimbal['roll_relative']
+		self.msg_gimbal.vector.y = -gimbal['pitch_relative']
+		self.msg_gimbal.vector.z = -gimbal['yaw_relative']
+		self.drone.pub_gimbal_relative.publish(self.msg_gimbal)
 
 	@olympe.listen_event(user_storage_monitor(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_user_storage.html#olympe.messages.user_storage.monitor
 	def on_user_storage_monitor(self, event, scheduler):

@@ -21,7 +21,7 @@ add_message_files(
   PilotingCommand.msg
   MoveByCommand.msg 
   MoveToCommand.msg 
-  SkyControllerCommand.msg
+  SkycontrollerCommand.msg
   CameraCommand.msg
   GimbalCommand.msg
   TargetTrajectory.msg
