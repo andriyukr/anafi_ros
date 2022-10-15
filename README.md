@@ -71,7 +71,7 @@ This package has been tested with **python3** in **ROS2 Humble**/**Ubuntu 22.04*
 To build from source, clone the latest version from this repository into your ROS2 workspace and build the package using:
 
 	cd ~/dev_ws/src
-	git clone https://github.com/andriyukr/olympe_bridge.git
+	git clone -b ros2 https://github.com/andriyukr/olympe_bridge.git
 	sudo chmod -R 777 olympe_bridge/
 	cd ..
 	colcon build
