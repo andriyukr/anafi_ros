@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<package format="3">
+	<name>olympe_bridge_nodes</name>
+	<version>0.3.0</version>
+	<description>The olympe_bridge package</description>
+
+	<maintainer email="andriy.sarabakha@ntu.edu.sg">Andriy Sarabakha</maintainer>
+
+	<license>BSD</license>
+
+	<author email="andriy.sarabakha@ntu.edu.sg">Andriy Sarabakha</author>
+
+	<buildtool_depend>ament_cmake_python</buildtool_depend>
+    
+	<depend>rclpy</depend>
+	<depend>std_msgs</depend>
+	<depend>geometry_msgs</depend>
+	<depend>sensor_msgs</depend>
+	<depend>olympe_bridge_interfaces</depend>
+	
+	<exec_depend>ros2launch</exec_depend>
+    
+	<export>
+		<build_type>ament_python</build_type>
+	</export>
+</package>

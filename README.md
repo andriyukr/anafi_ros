@@ -1,5 +1,5 @@
-# ROS Bridge for Parrot Drones
-This ROS package contains interface to Olympe SDK. Currently, it supports only Parrot Anafi drones (4K, Thermal, USA, AI).
+# ROS2 Bridge for Parrot Drones
+This ROS2 package contains interface to Olympe SDK. Currently, it supports only Parrot Anafi drones (4K, Thermal, USA, AI).
 
 ## Overview
 
@@ -13,7 +13,7 @@ This is research code, expect that it changes often and any fitness for a partic
 
 ## Installation
 
-This package has been tested with **python3** in **ROS Melodic**/**Ubuntu 18.04** and **ROS Noetic**/**Ubuntu 20.04**.
+This package has been tested with **python3** in **ROS2 Humble**/**Ubuntu 22.04**.
 
 ### Dependencies
 
@@ -37,6 +37,16 @@ This package has been tested with **python3** in **ROS Melodic**/**Ubuntu 18.04*
 
         echo 'alias python=python3' >> ~/.bash_aliases
         source ~/.bash_aliases
+  
+  - *Issue*
+
+        TypeError: Expected a message Descriptor, got Descriptor
+    
+    *Solution*
+  
+    Install `protobuf` version `3.6`:
+
+        pip install protobuf==3.6
     
   - *Issue*
 
@@ -54,16 +64,30 @@ This package has been tested with **python3** in **ROS Melodic**/**Ubuntu 18.04*
     
 - [SciPy](https://scipy.org/install/) - library for scientific and technical computing:
 
-      pip install scipy    
+      pip install scipy
     
 ## Clone
 
-Clone the latest version from this repository into your ROS workspace:
+To build from source, clone the latest version from this repository into your ROS2 workspace and build the package using:
 
 	cd ~/dev_ws/src
 	git clone https://github.com/andriyukr/olympe_bridge.git
 	sudo chmod -R 777 olympe_bridge/
+	cd ..
+	colcon build
+	
+  - *Issue*
 
-## Run
+        SetuptoolsDeprecationWarning: setup.py install is deprecated. Use build and pip and other standards-based tools.
+    
+    *Solution*
+  
+    Install `setuptools` version `58.2.0`:
 
-    roslaunch olympe_bridge anafi.launch
+        pip install setuptools==58.2.0
+        	
+## Usage
+
+To connect to the drone, run in the terminal:
+
+    ros2 launch olympe_bridge_nodes anafi_launch.py
