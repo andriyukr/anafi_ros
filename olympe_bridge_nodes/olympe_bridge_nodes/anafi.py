@@ -1041,10 +1041,10 @@ class Anafi(Node):
 	def rpyt_callback(self, msg):
 		self.drone(PCMD(  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.Piloting.PCMD
 			flag=1,
-			roll=int(self.bound_percentage(msg.roll/self.max_tilt*100)),  # roll [-100, 100] (% of max tilt)
-			pitch=int(self.bound_percentage(msg.pitch/self.max_tilt*100)),  # pitch [-100, 100] (% of max tilt)
-			yaw=int(self.bound_percentage(-msg.yaw/self.max_rotation_speed*100)),  # yaw rate [-100, 100] (% of max yaw rate)
-			gaz=int(self.bound_percentage(msg.gaz/self.max_vertical_speed*100)),  # vertical speed [-100, 100] (% of max vertical speed)
+			roll=int(bound_percentage(msg.roll/self.max_tilt*100)),  # roll [-100, 100] (% of max tilt)
+			pitch=int(bound_percentage(msg.pitch/self.max_tilt*100)),  # pitch [-100, 100] (% of max tilt)
+			yaw=int(bound_percentage(-msg.yaw/self.max_rotation_speed*100)),  # yaw rate [-100, 100] (% of max yaw rate)
+			gaz=int(bound_percentage(msg.gaz/self.max_vertical_speed*100)),  # vertical speed [-100, 100] (% of max vertical speed)
 			timestampAndSeqNum=0))
 
 	def moveBy_callback(self, msg):		
