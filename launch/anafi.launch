@@ -3,7 +3,7 @@
 <launch>
 	<arg name="name" default="anafi"/>
 	<arg name="model" default="4k"/> <!-- {"4k", "thermal", "usa", "ai"} -->
-	<arg name="ip" default="192.168.53.1"/> <!-- Phisical Anafi: "192.168.42.1", Simulated Anafi: "10.202.0.1", SkyController: "192.168.53.1" -->
+	<arg name="ip" default="192.168.53.1"/> <!-- Physical Anafi: "192.168.42.1", Simulated Anafi: "10.202.0.1", SkyController: "192.168.53.1" -->
 	<arg name="drone_serial" default=""/> <!-- PS728000BA8G055937, PI040416BA8G055937 -->
 	<arg name="wifi_key" default=""/> <!-- JP2GZQNQTTHZ -->
 	<arg name="rest_api_version" default="1"/>
