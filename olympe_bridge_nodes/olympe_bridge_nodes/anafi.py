@@ -30,7 +30,6 @@ from rcl_interfaces.msg import ParameterDescriptor, FloatingPointRange, IntegerR
 from ament_index_python.packages import get_package_share_directory
 from std_msgs.msg import UInt8, UInt16, UInt32, UInt64, Int8, Float32, String, Header, Bool
 from geometry_msgs.msg import PoseStamped, PointStamped, QuaternionStamped, TwistStamped, Vector3Stamped, Quaternion, Twist, Vector3
-from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Image, CameraInfo, NavSatFix
 from builtin_interfaces.msg import Time
 from std_srvs.srv import Trigger, SetBool
@@ -48,11 +47,12 @@ from olympe.messages.piloting_style import set_style
 from olympe.messages.controller_info import validity_from_drone
 from olympe.messages.precise_home import set_mode as precise_home_set_mode
 from olympe.messages.rth import return_to_home, abort, set_ending_behavior, set_ending_hovering_altitude, set_min_altitude
+from olympe.messages import obstacle_avoidance
 from olympe.messages.skyctrl.CoPiloting import setPilotingSource
 from olympe.messages.skyctrl.CoPilotingState import pilotingSource
 from olympe.messages.skyctrl.Common import AllStates
 from olympe.messages.skyctrl.CommonState import AllStatesChanged
-from olympe.messages import gimbal, camera, mapper, leds
+from olympe.messages import gimbal, camera, mapper, leds, thermal
 from olympe.media import download_media, indexing_state, delete_media, delete_all_media
 from olympe.messages.mediastore import state as mediastore_state_message
 from olympe.enums.ardrone3.PilotingState import AlertStateChanged_State, ForcedLandingAutoTrigger_Reason
@@ -60,17 +60,18 @@ from olympe.enums.camera import availability, state
 from olympe.enums.piloting_style import style
 from olympe.enums.precise_home import mode as precise_home_mode
 from olympe.enums.mediastore import state as mediastore_state_enum
+from olympe.enums.obstacle_avoidance import mode as obstacle_avoidance_mode
 from olympe_bridge_interfaces.msg import PilotingCommand, MoveByCommand, MoveToCommand, CameraCommand, GimbalCommand, SkycontrollerCommand
 from olympe_bridge_interfaces.srv import PilotedPOI, FlightPlan, FollowMe, Location, String as StringSRV
 from olympe_bridge_nodes.event_listener_anafi import EventListenerAnafi
 from olympe_bridge_nodes.event_listener_skycontroller import EventListenerSkyController
-from olympe_bridge_nodes.utils import euler_from_quaternion
+from olympe_bridge_nodes.utils import euler_from_quaternion, bound_percentage, bound
 
 olympe.log.update_config({"loggers": {"olympe": {"level": "ERROR"}}})
 
 
 class Anafi(Node):
-	models = {2324:"4k", 2329:"thermal", 2334:"usa", 0000:"ai"}
+	models = {2324:"4k", 2329:"thermal", 2334:"usa", 2330:"ai"}
 
 	def __init__(self):
 		self.node = rclpy.create_node('anafi')
@@ -78,11 +79,13 @@ class Anafi(Node):
 		self.node.get_logger().info("anafi_bridge is running...")
 		
 		# Publishers
-		self.pub_image = self.node.create_publisher(Image, 'camera/image', qos_profile_sensor_data)
+		self.pub_image = self.node.create_publisher(Image, 'camera/image', qos_profile_system_default)
 		self.pub_camera_info = self.node.create_publisher(CameraInfo, 'camera/camera_info', qos_profile_system_default)
 		self.pub_time = self.node.create_publisher(Time, 'time', qos_profile_sensor_data)
 		self.pub_attitude = self.node.create_publisher(QuaternionStamped, 'drone/attitude', qos_profile_sensor_data)
 		self.pub_altitude = self.node.create_publisher(Float32, 'drone/altitude', qos_profile_sensor_data)
+		self.pub_position = self.node.create_publisher(PointStamped, 'drone/position', qos_profile_system_default)
+		self.pub_local_position = self.node.create_publisher(PointStamped, 'drone/position_local', qos_profile_system_default)
 		self.pub_speed = self.node.create_publisher(Vector3Stamped, 'drone/speed', qos_profile_sensor_data)
 		self.pub_link_goodput = self.node.create_publisher(UInt16, 'link/goodput', qos_profile_system_default)
 		self.pub_link_quality = self.node.create_publisher(UInt8, 'link/quality', qos_profile_system_default)
@@ -101,15 +104,14 @@ class Anafi(Node):
 		self.pub_gps_fix = self.node.create_publisher(Bool, 'drone/gps/fix', qos_profile_system_default)
 		self.pub_steady = self.node.create_publisher(Bool, 'drone/steady', qos_profile_sensor_data)
 		self.pub_battery_health = self.node.create_publisher(UInt8, 'battery/health', qos_profile_system_default)
-		self.pub_home_location = self.node.create_publisher(PointStamped, 'home/location', qos_profile_system_default)
 		self.pub_skyctrl_command = self.node.create_publisher(SkycontrollerCommand, 'skycontroller/command', qos_profile_system_default)
 
 		# Subscribers
-		self.node.create_subscription(PilotingCommand, 'drone/rpyt', self.rpyt_callback, qos_profile_system_default)
+		self.node.create_subscription(PilotingCommand, 'drone/command', self.rpyt_callback, qos_profile_system_default)
 		self.node.create_subscription(MoveToCommand, 'drone/moveto', self.moveTo_callback, qos_profile_system_default)
 		self.node.create_subscription(MoveByCommand, 'drone/moveby', self.moveBy_callback, qos_profile_system_default)
-		self.node.create_subscription(CameraCommand, 'camera/cmd', self.zoom_callback, qos_profile_system_default)
-		self.node.create_subscription(GimbalCommand, 'gimbal/cmd', self.gimbal_callback, qos_profile_system_default)
+		self.node.create_subscription(CameraCommand, 'camera/command', self.camera_callback, qos_profile_system_default)
+		self.node.create_subscription(GimbalCommand, 'gimbal/command', self.gimbal_callback, qos_profile_system_default)
 		
 		# Services
 		self.node.create_service(SetBool, 'drone/arm', self.arm_callback)
@@ -151,6 +153,8 @@ class Anafi(Node):
 		self.msg_attitude = QuaternionStamped()
 		self.msg_rpy = Vector3Stamped()
 		self.msg_ground_distance = Float32()
+		self.msg_position = PointStamped()
+		self.msg_local_position = PointStamped()
 		self.msg_speed = Vector3Stamped()
 		self.msg_battery_percentage = UInt8()
 		self.msg_exposure_time = Float32()
@@ -176,6 +180,7 @@ class Anafi(Node):
 		self.wifi_key = self.node.declare_parameter('wifi_key', '', ParameterDescriptor(read_only=True)).value
 		self.rest_api_version = self.node.declare_parameter('rest_api_version', 0, ParameterDescriptor(read_only=True)).value
 		self.skycontroller_enabled = self.node.declare_parameter('skycontroller_enabled', False, ParameterDescriptor(read_only=True)).value
+		self.node.declare_parameter('drone_name', '', ParameterDescriptor(read_only=True))
 
 		if self.skycontroller_enabled:  # connect to SkyController
 			self.node.get_logger().info("Connecting through SkyController")
@@ -327,6 +332,7 @@ class Anafi(Node):
 
 		self.node.get_logger().info('Drone model: ' + self.model)
 		self.node.set_parameters([Parameter('model', rclpy.Parameter.Type.STRING, self.model)])
+		self.node.set_parameters([Parameter('drone_name', rclpy.Parameter.Type.STRING, self.model + "_" + self.ip)])  # TODO: replace IP with sequence number; make this parameter read only
 
 		if self.model in {'4k', 'thermal', 'usa', 'ai'}:
 			with open(get_package_share_directory('olympe_bridge_nodes') + "/camera_" + self.model + ".yaml", "r") as file_handle:  # load camera info from file
@@ -341,7 +347,7 @@ class Anafi(Node):
 			self.msg_camera_info.r = camera_info['rectification_matrix']['data']
 			self.msg_camera_info.p = camera_info['projection_matrix']['data']
 		else:
-			self.node.get_logger().error("Model " + self.model + " is not supported")
+			self.node.get_logger().error("Model is not supported")
 
 		self.drone(camera.set_antiflicker_mode(mode="auto")) # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.messages.camera.set_antiflicker_mode
 		self.drone(camera.set_white_balance(cam_id=0, mode="automatic", temperature="t_8000")) # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.messages.camera.set_white_balance
@@ -363,15 +369,12 @@ class Anafi(Node):
 		self.node.get_logger().debug('Battery serial: %s' % (self.drone.get_state(olympe.messages.battery.serial)['serial']))  # https://developer.parrot.com/docs/olympe/arsdkng_battery.html#olympe.messages.battery.serial
 		self.node.get_logger().info('Battery cycle count: %i' % (self.drone.get_state(olympe.messages.battery.cycle_count)['count']))  # https://developer.parrot.com/docs/olympe/arsdkng_battery.html#olympe.messages.battery.cycle_count
 		self.node.get_logger().info('Battery health: %i%%' % (self.drone.get_state(olympe.messages.battery.health)['state_of_health']))  # https://developer.parrot.com/docs/olympe/arsdkng_battery.html#olympe.messages.battery.health
-		self.node.get_logger().debug('Camera states: %s' % (str(self.drone.get_state(olympe.messages.camera.camera_states))))  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.messages.camera.camera_states
-		self.node.get_logger().debug('Camera capabilities: %s' % (str(self.drone.get_state(olympe.messages.camera.camera_capabilities))))  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.messages.camera.camera_capabilities
-		self.node.get_logger().debug('Recording capabilities: %s' % (str(self.drone.get_state(olympe.messages.camera.recording_capabilities))))  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.messages.camera.recording_capabilities
 		max_tilt = self.drone.get_state(olympe.messages.ardrone3.PilotingSettingsState.MaxTiltChanged)  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.PilotingSettingsState.MaxTiltChanged
 		self.node.get_logger().debug('MaxTilt = %f [%f, %f]' % (max_tilt["current"], max_tilt["min"], max_tilt["max"]))
 		max_vertical_speed = self.drone.get_state(olympe.messages.ardrone3.SpeedSettingsState.MaxVerticalSpeedChanged)  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.SpeedSettingsState.MaxVerticalSpeedChanged
 		self.node.get_logger().debug('MaxVerticalSpeed = %f [%f, %f]' % (max_vertical_speed["current"], max_vertical_speed["min"], max_vertical_speed["max"]))
-		max_rotation_speed = self.drone.get_state(olympe.messages.ardrone3.SpeedSettingsState.MaxRotationSpeedChanged)  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.SpeedSettingsState.MaxRotationSpeedChanged
-		self.node.get_logger().debug('MaxRotationSpeed = %f [%f, %f]' % (max_rotation_speed["current"], max_rotation_speed["min"], max_rotation_speed["max"]))
+		max_yaw_rotation_speed = self.drone.get_state(olympe.messages.ardrone3.SpeedSettingsState.MaxRotationSpeedChanged)  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.SpeedSettingsState.MaxRotationSpeedChanged
+		self.node.get_logger().debug('MaxYawRotationSpeed = %f [%f, %f]' % (max_yaw_rotation_speed["current"], max_yaw_rotation_speed["min"], max_yaw_rotation_speed["max"]))
 		max_pitch_roll_rotation_speed = self.drone.get_state(olympe.messages.ardrone3.SpeedSettingsState.MaxPitchRollRotationSpeedChanged)  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.SpeedSettingsState.MaxPitchRollRotationSpeedChanged
 		self.node.get_logger().debug('MaxPitchRollRotationSpeed = %f [%f, %f]' % (max_pitch_roll_rotation_speed["current"], max_pitch_roll_rotation_speed["min"], max_pitch_roll_rotation_speed["max"]))
 		max_distance = self.drone.get_state(olympe.messages.ardrone3.PilotingSettingsState.MaxDistanceChanged)  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.PilotingSettingsState.MaxDistanceChanged
@@ -382,11 +385,38 @@ class Anafi(Node):
 		self.node.get_logger().debug('BankedTurn = %i' % (self.drone.get_state(olympe.messages.ardrone3.PilotingSettingsState.BankedTurnChanged)["state"]))  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.PilotingSettingsState.BankedTurnChanged
 		absolute_attitude_bounds = self.drone.get_state(olympe.messages.gimbal.absolute_attitude_bounds)[0]  # https://developer.parrot.com/docs/olympe/arsdkng_gimbal.html#olympe.messages.gimbal.absolute_attitude_bounds
 		self.node.get_logger().debug('GimbalAbsoluteBounds (deg): roll=[%f, %f], pitch=[%f, %f], yaw=[%f, %f]' % (absolute_attitude_bounds["min_roll"], absolute_attitude_bounds["max_roll"], absolute_attitude_bounds["min_pitch"], absolute_attitude_bounds["max_pitch"], absolute_attitude_bounds["min_yaw"], absolute_attitude_bounds["max_yaw"]))
-		relative_attitude_bounds = self.drone.get_state(olympe.messages.gimbal.relative_attitude_bounds)[0]  # https://developer.parrot.com/docs/olympe/arsdkng_gimbal.html#olympe.messages.gimbal.relative_attitude_bounds
-		self.node.get_logger().debug('GimbalRelativeBounds (deg): roll=[%f, %f], pitch=[%f, %f], yaw=[%f, %f]' % (relative_attitude_bounds["min_roll"], relative_attitude_bounds["max_roll"], relative_attitude_bounds["min_pitch"], relative_attitude_bounds["max_pitch"], relative_attitude_bounds["min_yaw"], relative_attitude_bounds["max_yaw"]))
 		max_speed = self.drone.get_state(olympe.messages.gimbal.max_speed)[0]  # https://developer.parrot.com/docs/olympe/arsdkng_gimbal.html#olympe.messages.gimbal.max_speed
 		self.node.get_logger().debug('GimbalMaxSpeed (deg/s): roll=%f [%f, %f], pitch=%f [%f, %f], yaw=%f [%f, %f]' % (max_speed["current_roll"], max_speed["min_bound_roll"], max_speed["max_bound_roll"], max_speed["current_pitch"], max_speed["min_bound_pitch"], max_speed["max_bound_pitch"], max_speed["current_yaw"], max_speed["min_bound_yaw"], max_speed["max_bound_yaw"]))
-		
+
+		if self.model in {'4k', 'thermal', 'usa'}:
+			self.node.get_logger().debug('Camera states: %s' % (str(self.drone.get_state(olympe.messages.camera.camera_states))))  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.messages.camera.camera_states
+			self.node.get_logger().debug('Camera capabilities: %s' % (str(self.drone.get_state(olympe.messages.camera.camera_capabilities))))  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.messages.camera.camera_capabilities
+			self.node.get_logger().debug('Recording capabilities: %s' % (str(self.drone.get_state(olympe.messages.camera.recording_capabilities))))  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.messages.camera.recording_capabilities
+
+			relative_attitude_bounds = self.drone.get_state(olympe.messages.gimbal.relative_attitude_bounds)[0]  # https://developer.parrot.com/docs/olympe/arsdkng_gimbal.html#olympe.messages.gimbal.relative_attitude_bounds
+			self.node.get_logger().debug('GimbalRelativeBounds (deg): roll=[%f, %f], pitch=[%f, %f], yaw=[%f, %f]' % (relative_attitude_bounds["min_roll"], relative_attitude_bounds["max_roll"], relative_attitude_bounds["min_pitch"], relative_attitude_bounds["max_pitch"], relative_attitude_bounds["min_yaw"], relative_attitude_bounds["max_yaw"]))
+
+		if self.model in {'thermal', 'usa'}:
+			self.drone(thermal.set_emissivity(emissivity=1)).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_thermal.html#olympe.messages.thermal.set_emissivity
+			self.drone(thermal.set_mode(mode='blended')).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_thermal.html#olympe.messages.thermal.set_mode
+			self.drone(thermal.set_palette_settings(  # https://developer.parrot.com/docs/olympe/arsdkng_thermal.html#olympe.messages.thermal.set_palette_settings
+				mode='relative',  # https://developer.parrot.com/docs/olympe/arsdkng_thermal.html#olympe.enums.thermal.palette_mode
+				lowest_temp=303,  # in Kelvin (30C = 273K)
+				highest_temp=313,  # in Kelvin (40C = 313K)
+				outside_colorization='extended',  # https://developer.parrot.com/docs/olympe/arsdkng_thermal.html#olympe.enums.thermal.colorization_mode
+				relative_range='unlocked',  # https://developer.parrot.com/docs/olympe/arsdkng_thermal.html#olympe.enums.thermal.relative_range_mode
+				spot_type='hot',  # https://developer.parrot.com/docs/olympe/arsdkng_thermal.html#olympe.enums.thermal.spot_type
+				spot_threshold=0.9)).wait()
+			self.drone(thermal.set_rendering(  # https://developer.parrot.com/docs/olympe/arsdkng_thermal.html#olympe.messages.thermal.set_rendering
+				mode='blended',  # https://developer.parrot.com/docs/olympe/arsdkng_thermal.html#olympe.enums.thermal.rendering_mode
+				blending_rate=0.5)).wait()
+			self.drone(thermal.set_sensitivity(range='low')).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_thermal.html#olympe.messages.thermal.set_sensitivity
+			self.drone(thermal.shutter_mode(current_trigger='auto')).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_thermal.html#olympe.messages.thermal.shutter_mode
+
+		if self.model in {'ai'}:
+			self.drone(obstacle_avoidance.set_mode( # TODO: make it parametric. https://developer.parrot.com/docs/olympe/arsdkng_obstacle_avoidance.html#olympe.messages.obstacle_avoidance.set_mode
+				mode=obstacle_avoidance_mode(int(1))))  # https://developer.parrot.com/docs/olympe/arsdkng_obstacle_avoidance.html#olympe.enums.obstacle_avoidance.mode
+
 		if self.skycontroller_enabled:
 			skyctrl_version = self.drone.get_state(olympe.messages.skyctrl.SettingsState.ProductVersionChanged)  # https://developer.parrot.com/docs/olympe/arsdkng_skyctrl_settings.html#olympe.messages.skyctrl.SettingsState.ProductVersionChanged
 			self.node.get_logger().debug('Controller version: software=%s, hardware=%s' % (skyctrl_version['software'], skyctrl_version['hardware']))
@@ -401,15 +431,14 @@ class Anafi(Node):
 			else:
 				self.node.get_logger().info('Mediastore state is indexed')
 				
-		#if self.model in {"thermal", "usa"}:
-		#	self.node.get_logger().warning('thermal_capabilities: ' + str(self.drone.get_state(olympe.messages.thermal.capabilities)))
-		#	self.node.get_logger().warning('emissivity: ' + str(self.drone.get_state(olympe.messages.thermal.emissivity)))
-		#	self.drone(olympe.messages.thermal.set_mode(mode="blended")).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_thermal.html#olympe.messages.thermal.set_mode
-		#	self.node.get_logger().warning('thermal_mode: ' + str(self.drone.get_state(olympe.messages.thermal.mode)))
-		#	self.drone(olympe.messages.thermal.set_rendering(mode="blended", blending_rate=0.5)).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_thermal.html#olympe.messages.thermal.set_rendering
-		#	self.node.get_logger().warning('rendering: ' + str(self.drone.get_state(olympe.messages.thermal.rendering)))
-		#	self.node.get_logger().warning('sensitivity: ' + str(self.drone.get_state(olympe.messages.thermal.sensitivity)))
-										
+		# Setup the callback functions to do some live video processing
+		self.processing_thread = threading.Thread(target=self.yuv_frame_processing)
+		self.drone.streaming.set_callbacks(
+			raw_cb=self.yuv_frame_cb,
+			flush_raw_cb=self.flush_cb)
+		self.drone.streaming.start(media_name="") # media_name="Disparity map"
+		self.processing_thread.start()
+
 	def connect(self):
 		self.running = False
 
@@ -435,6 +464,8 @@ class Anafi(Node):
 			self.node.get_logger().info("Connected to SkyController")
 			self.switch_manual()
 
+			self.event_listener_skycontroller.subscribe()
+
 			while True:  # connect to the drone
 				if self.drone(connection_state(state="connected", _policy="check")):
 					break				
@@ -453,28 +484,20 @@ class Anafi(Node):
 			self.pub_state.publish(self.msg_state)
 			self.node.get_logger().info("Connected to Anafi")
 			self.switch_offboard()
+
+		self.event_listener_anafi.subscribe()
 			
 		self.node.get_logger().debug('Boot Id: %s' % (self.drone.get_state(olympe.messages.common.CommonState.BootId)['bootId']))  # https://developer.parrot.com/docs/olympe/arsdkng_common_common.html#olympe.messages.common.CommonState.BootId
 
 		self.running = True
 
-		self.event_listener_anafi.subscribe()
-		self.event_listener_skycontroller.subscribe()
-
 		self.timer_check = self.node.create_timer(0.01, self.check_callback)
 		self.timer_fast = self.node.create_timer(0.01, self.fast_callback)
 		self.timer_slow = self.node.create_timer(1.00, self.slow_callback)
+		self.timer_skycontroller = self.node.create_timer(0.01, self.skycontroller_callback)
 		self.node.add_on_set_parameters_callback(self.parameter_callback)
 
 		self.frame_queue = queue.Queue(maxsize=1)  # TODO: replace by a shared variable
-		self.processing_thread = threading.Thread(target=self.yuv_frame_processing)
-
-		# Setup the callback functions to do some live video processing
-		self.drone.streaming.set_callbacks(
-			raw_cb=self.yuv_frame_cb,
-			flush_raw_cb=self.flush_cb)
-		self.drone.streaming.start()
-		self.processing_thread.start()
 		
 	def disconnect(self):
 		self.msg_state.data = "DISCONNECTING"
@@ -488,8 +511,9 @@ class Anafi(Node):
 			self.event_listener_anafi.unsubscribe()
 			self.event_listener_skycontroller.unsubscribe()
 			self.timer_check.shutdown()
-			self.fast_timer.shutdown()
-			self.slow_timer.shutdown()
+			self.timer_fast.shutdown()
+			self.timer_slow.shutdown()
+			self.timer_skycontroller.shutdown()
 			self.processing_thread.join()
 			self.drone.streaming.stop()
 
@@ -505,10 +529,21 @@ class Anafi(Node):
 			self.connect()
 
 	def fast_callback(self):  # fast states triggered on changes
-		#motion_state = self.drone.get_state(olympe.messages.ardrone3.PilotingState.MotionState)['state']  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.PilotingState.MotionState  # FIXME: check why it fails
-		#self.msg_steady.data = (self.state == "LANDED" and motion_state == olympe.enums.ardrone3.PilotingState.MotionState_State.steady)
-		#self.pub_steady.publish(self.msg_steady)
+		# FIXME: check on steady state
+		motion_state = self.drone.get_state(olympe.messages.ardrone3.PilotingState.MotionState)['state']  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.PilotingState.MotionState  # FIXME: check why it fails
+		self.msg_steady.data = (self.state == "LANDED" and motion_state == olympe.enums.ardrone3.PilotingState.MotionState_State.steady)
+		self.pub_steady.publish(self.msg_steady)
+		pass
 
+	def slow_callback(self):  # slow states triggered on changes
+		self.gps_fixed = bool(self.drone.get_state(olympe.messages.ardrone3.GPSSettingsState.GPSFixStateChanged)['fixed'])  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_gps.html#olympe.messages.ardrone3.GPSSettingsState.GPSFixStateChanged
+		self.msg_gps_fix.data = self.gps_fixed
+		self.pub_gps_fix.publish(self.msg_gps_fix)
+
+		self.msg_battery_health.data = self.drone.get_state(olympe.messages.battery.health)['state_of_health']  # https://developer.parrot.com/docs/olympe/arsdkng_battery.html#olympe.messages.battery.health
+		self.pub_battery_health.publish(self.msg_battery_health)
+
+	def skycontroller_callback(self):  # publishes continuously the commands from skycontroller
 		if self.skycontroller_enabled:
 			self.msg_skycontroller.header.stamp = self.node.get_clock().now().to_msg()
 			self.pub_skyctrl_command.publish(self.msg_skycontroller)
@@ -517,23 +552,6 @@ class Anafi(Node):
 			self.msg_skycontroller.takeoff_land = False
 			self.msg_skycontroller.reset_camera = False
 			self.msg_skycontroller.reset_zoom = False
-
-	def slow_callback(self):  # slow states triggered on changes
-		self.gps_fixed = bool(self.drone.get_state(olympe.messages.ardrone3.GPSSettingsState.GPSFixStateChanged)['fixed'])  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_gps.html#olympe.messages.ardrone3.GPSSettingsState.GPSFixStateChanged
-		self.msg_gps_fix.data = self.gps_fixed
-		self.pub_gps_fix.publish(self.msg_gps_fix)
-
-		home = self.drone.get_state(olympe.messages.ardrone3.GPSSettingsState.HomeChanged)  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_gps.html#olympe.messages.ardrone3.GPSSettingsState.HomeChanged
-		if home['latitude'] != 500 and home['longitude'] != 500 and home['altitude'] != 500:
-			self.msg_home_location.header.stamp = self.node.get_clock().now().to_msg()
-			self.msg_home_location.header.frame_id = '/world'
-			self.msg_home_location.point.x = home['latitude']
-			self.msg_home_location.point.y = home['longitude']
-			self.msg_home_location.point.z = home['altitude']
-			self.pub_home_location.publish(self.msg_home_location)
-
-		self.msg_battery_health.data = self.drone.get_state(olympe.messages.battery.health)['state_of_health']  # https://developer.parrot.com/docs/olympe/arsdkng_battery.html#olympe.messages.battery.health
-		self.pub_battery_health.publish(self.msg_battery_health)
 
 	def parameter_callback(self, parameters):
 		for parameter in parameters:
@@ -616,8 +634,7 @@ class Anafi(Node):
 				self.node.get_logger().debug("Parameter 'camera_mode' set to '%s'" % olympe.enums.camera.camera_mode(self.camera_mode))
 			if parameter.name == 'hdr':
 				self.hdr = parameter.value
-				self.drone(camera.set_hdr_setting(
-					# https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.messages.camera.set_hdr_setting
+				self.drone(camera.set_hdr_setting(  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.messages.camera.set_hdr_setting
 					cam_id=0,
 					value=olympe.enums.camera.state(
 						int(self.hdr))))  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.enums.camera.state FIXME: CHECK for a potencial bug
@@ -630,8 +647,7 @@ class Anafi(Node):
 				self.node.get_logger().debug("Parameter 'ev_compensation' set to '%s'" % olympe.enums.camera.ev_compensation(self.ev_compensation))
 			if parameter.name == 'streaming_mode':
 				self.streaming_mode = parameter.value
-				self.drone(camera.set_streaming_mode(
-					# https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.messages.camera.set_streaming_mode
+				self.drone(camera.set_streaming_mode(  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.messages.camera.set_streaming_mode
 					cam_id=0,
 					value=olympe.enums.camera.streaming_mode(
 						self.streaming_mode)))  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.enums.camera.streaming_mode
@@ -651,9 +667,20 @@ class Anafi(Node):
 
 			# photo related
 			if parameter.name == 'photo_mode' or parameter.name == 'photo_format' or parameter.name == 'file_format':
+				#photo = self.drone.get_state(olympe.messages.camera.photo_mode)  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.messages.camera.photo_mode
+				self.photo_mode = 0 #photo[0]["mode"]
+				self.photo_format = 1 #photo[0]["format"]
+				self.file_format = 0 #photo[0]["file_format"]
+			if parameter.name == 'photo_mode':
 				self.photo_mode = parameter.value
+				self.node.get_logger().debug("Parameter 'photo_mode' set to '%s'" % olympe.enums.camera.photo_mode(self.photo_mode))
+			if parameter.name == 'photo_format':
 				self.photo_format = parameter.value
+				self.node.get_logger().debug("Parameter 'photo_format' set to '%s'" % olympe.enums.camera.photo_format(self.photo_format))
+			if parameter.name == 'file_format':
 				self.file_format = parameter.value
+				self.node.get_logger().debug("Parameter 'file_format' set to '%s'" % olympe.enums.camera.photo_file_format(self.file_format))
+			if parameter.name == 'photo_mode' or parameter.name == 'photo_format' or parameter.name == 'file_format':
 				self.drone(camera.set_photo_mode(  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.messages.camera.set_photo_mode
 					cam_id=0,
 					mode=olympe.enums.camera.photo_mode(self.photo_mode),  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.enums.camera.photo_mode
@@ -662,9 +689,6 @@ class Anafi(Node):
 					burst=olympe.enums.camera.burst_value.burst_14_over_1s,  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.enums.camera.photo_file_format
 					bracketing=olympe.enums.camera.bracketing_preset.preset_1ev_2ev_3ev,  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.enums.camera.bracketing_preset
 					capture_interval=1))  # (s\time_lapse, m\gps_lapse)
-				self.node.get_logger().debug("Parameter 'photo_mode' set to '%s'" % olympe.enums.camera.photo_mode(self.photo_mode))
-				self.node.get_logger().debug("Parameter 'photo_format' set to '%s'" % olympe.enums.camera.photo_format(self.photo_format))
-				self.node.get_logger().debug("Parameter 'file_format' set to '%s'" % olympe.enums.camera.photo_file_format(self.file_format))
 
 			# video related
 			if parameter.name == 'autorecord':
@@ -733,22 +757,11 @@ class Anafi(Node):
 		return True
 
 	def yuv_frame_processing(self):
-		#times = np.zeros((1000, 1))
-		#c = 0
-		#timer_old = timer()  # TODO: check why the execution rate decreases with time
-
 		while self.running:
 			try:
 				yuv_frame = self.frame_queue.get(timeout=0.1)
 			except queue.Empty:
 				continue
-
-			#timer_now = timer()
-			#times[c % 1000] = timer_now - timer_old
-			#timer_old = timer_now
-			#c = c + 1
-			#if c % 100 == 0:
-			#	self.node.get_logger().warning("*** mean = " + str(np.mean(times)))  # TODO: check why the execution rate decreases with time
 
 			info = yuv_frame.info()  # the VideoFrame.info() dictionary contains some useful information such as the video resolution
 			self.node.get_logger().debug("yuv_frame.info = " + str(info), throttle_duration_sec=10)
@@ -756,6 +769,7 @@ class Anafi(Node):
 			vmeta = yuv_frame.vmeta()  # yuv_frame.vmeta() returns a dictionary that contains additional metadata from the drone
 			self.node.get_logger().debug("yuv_frame.vmeta = " + str(vmeta), throttle_duration_sec=10)
 
+			# TODO: check "has_errors" and "is_silent" flags for possible errors (https://forum.developer.parrot.com/t/yuv-frame-vmeta-returns-empty-object/16958/7)
 			if vmeta[1] != {}:
 				self.header.stamp = self.node.get_clock().now().to_msg()
 
@@ -768,29 +782,46 @@ class Anafi(Node):
 				drone_quat = vmeta[1]['drone']['quat']  # attitude
 				self.msg_attitude.header = self.header
 				self.msg_attitude.header.frame_id = '/world'
-				self.msg_attitude.quaternion = Quaternion(
-					x=drone_quat['x'],
-					y=-drone_quat['y'],
-					z=-drone_quat['z'],
-					w=drone_quat['w'])
+				self.msg_attitude.quaternion.x = drone_quat['x']
+				self.msg_attitude.quaternion.y = -drone_quat['y']
+				self.msg_attitude.quaternion.z = -drone_quat['z']
+				self.msg_attitude.quaternion.w = drone_quat['w']
 				self.pub_attitude.publish(self.msg_attitude)
 
 				(roll, pitch, yaw) = euler_from_quaternion(self.msg_attitude.quaternion)
 				self.msg_rpy.header = self.header
 				self.msg_rpy.header.frame_id = '/world'
-				self.msg_rpy.vector.x = roll*180/math.pi
-				self.msg_rpy.vector.y = pitch*180/math.pi
-				self.msg_rpy.vector.z = yaw*180/math.pi
+				self.msg_rpy.vector.x = math.degrees(roll)
+				self.msg_rpy.vector.y = math.degrees(pitch)
+				self.msg_rpy.vector.z = math.degrees(yaw)
 				self.pub_rpy.publish(self.msg_rpy)
 
 				self.msg_ground_distance.data = vmeta[1]['drone']['ground_distance']  # barometer (m)
 				self.pub_altitude.publish(self.msg_ground_distance)
 
+				if 'position' in vmeta[1]['drone']:
+					position = vmeta[1]['drone']['position']
+					self.msg_position.header = self.header
+					self.msg_position.header.frame_id = '/world'
+					self.msg_position.point.x = position['north']
+					self.msg_position.point.y = -position['east']
+					self.msg_position.point.z = -position['down']
+					self.pub_position.publish(self.msg_position)
+
+				if 'local_position' in vmeta[1]['drone']:
+					local_position = vmeta[1]['drone']['local_position']
+					self.msg_local_position.header = self.header
+					self.msg_local_position.header.frame_id = '/body'
+					self.msg_local_position.point.x = local_position['x']
+					self.msg_local_position.point.y = local_position['y']
+					self.msg_local_position.point.z = local_position['z']
+					self.pub_local_position.publish(self.msg_local_position)
+
 				speed = vmeta[1]['drone']['speed']  # optical flow speed (m/s)
 				self.msg_speed.header = self.header
-				self.msg_speed.header.frame_id = '/world'
-				self.msg_speed.vector.x = speed['north']
-				self.msg_speed.vector.y = -speed['east']
+				self.msg_speed.header.frame_id = '/body'
+				self.msg_speed.vector.x = math.cos(yaw)*speed['north'] + math.sin(yaw)*speed['east']
+				self.msg_speed.vector.y = math.sin(yaw)*speed['north'] - math.cos(yaw)*speed['east']
 				self.msg_speed.vector.z = -speed['down']
 				self.pub_speed.publish(self.msg_speed)
 
@@ -809,14 +840,14 @@ class Anafi(Node):
 					w=camera_quat['w'])
 				self.pub_camera_attitude.publish(self.msg_attitude)
 
-				camera_base_quat = vmeta[1]['camera']['base_quat']
-				self.msg_attitude.header.frame_id = '/body'
-				self.msg_attitude.quaternion = Quaternion(
-					x=camera_base_quat['x'],
-					y=-camera_base_quat['y'],
-					z=-camera_base_quat['z'],
-					w=camera_base_quat['w'])
-				self.pub_camera_base_attitude.publish(self.msg_attitude)
+				if 'base_quat' in vmeta[1]['drone']:
+					camera_base_quat = vmeta[1]['camera']['base_quat']
+					self.msg_attitude.header.frame_id = '/body'
+					self.msg_attitude.quaternion.x = camera_base_quat['x']
+					self.msg_attitude.quaternion.y = -camera_base_quat['y']
+					self.msg_attitude.quaternion.z = -camera_base_quat['z']
+					self.msg_attitude.quaternion.w = camera_base_quat['w']
+					self.pub_camera_base_attitude.publish(self.msg_attitude)
 
 				self.msg_exposure_time.data = vmeta[1]['camera']['exposure_time']
 				self.pub_exposure_time.publish(self.msg_exposure_time)
@@ -840,28 +871,33 @@ class Anafi(Node):
 				self.msg_state.data = self.state
 				self.pub_state.publish(self.msg_state)
 
-				self.msg_goodput.data = vmeta[1]['links'][0]['wifi']['goodput']  # throughput of the connection (b/s)
-				self.pub_link_goodput.publish(self.msg_goodput)
+				if self.model in {'4k', 'thermal', 'usa'}:
+					self.msg_goodput.data = vmeta[1]['links'][0]['wifi']['goodput']  # throughput of the connection (b/s)
+					self.pub_link_goodput.publish(self.msg_goodput)
 
-				self.msg_quality.data = vmeta[1]['links'][0]['wifi']['quality']  # [0=bad, 5=good]
-				self.pub_link_quality.publish(self.msg_quality)
+					self.msg_quality.data = vmeta[1]['links'][0]['wifi']['quality']  # [0=bad, 5=good]
+					self.pub_link_quality.publish(self.msg_quality)
 
-				rssi = vmeta[1]['links'][0]['wifi']['rssi']  # signal strength [-100=bad, 0=good] (dBm)
-				self.msg_rssi.data = rssi
-				self.pub_wifi_rssi.publish(self.msg_rssi)
+					rssi = vmeta[1]['links'][0]['wifi']['rssi']  # signal strength [-100=bad, 0=good] (dBm)
+					self.msg_rssi.data = rssi
+					self.pub_wifi_rssi.publish(self.msg_rssi)
 
-				# log signal strength
-				if rssi <= -60:
-					if rssi >= -70:
-						self.node.get_logger().info("Signal strength: %sdBm" % str(rssi), throttle_duration_sec=100)
-					else:
-						if rssi >= -80:
-							self.node.get_logger().warning("Weak signal: %sdBm" % str(rssi), throttle_duration_sec=10)
+					# log signal strength
+					if rssi <= -60:
+						if rssi >= -70:
+							self.node.get_logger().info("Signal strength: %sdBm" % str(rssi), throttle_duration_sec=100)
 						else:
-							if rssi >= -90:
-								self.node.get_logger().error("Unreliable signal: %sdBm" % str(rssi), throttle_duration_sec=1)
+							if rssi >= -80:
+								self.node.get_logger().warning("Weak signal: %sdBm" % str(rssi), throttle_duration_sec=10)
 							else:
-								self.node.get_logger().fatal("Unusable signal: %sdBm" % str(rssi), throttle_duration_sec=0.1)
+								if rssi >= -90:
+									self.node.get_logger().error("Unreliable signal: %sdBm" % str(rssi), throttle_duration_sec=1)
+								else:
+									self.node.get_logger().fatal("Unusable signal: %sdBm" % str(rssi), throttle_duration_sec=0.1)
+
+				if self.model in {'ai'}:  # TODO: check to which network the drone is connected (wlan or cellular)
+					self.msg_quality.data = vmeta[1]['links'][0]['starfish']['quality']  # [0=bad, 5=good]
+					self.pub_link_quality.publish(self.msg_quality)
 
 				cv2_cvt_color_flag = {  # convert pdraw YUV flag to OpenCV YUV flag
 					olympe.VDEF_I420: cv2.COLOR_YUV2BGR_I420,
@@ -958,12 +994,13 @@ class Anafi(Node):
 		
 	def rth_callback(self, request, response):
 		self.node.get_logger().info("Returning to Home")
+		assert self.drone(PCMD(flag=1, roll=0, pitch=0, yaw=0, gaz=0, timestampAndSeqNum=0)).wait().success()  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.Piloting.PCMD
 		assert self.drone(return_to_home()).wait().success()  # https://developer.parrot.com/docs/olympe/arsdkng_rth.html#olympe.messages.rth.return_to_home
 		return response
 		
 	def set_home_callback(self, request, response):
 		self.node.get_logger().info("Setting Home")
-		assert self.drone(olympe.messages.rth.set_custom_location(  # https://developer.parrot.com/docs/olympe/arsdkng_rth.html#olympe.messages.rth.return_to_home
+		assert self.drone(olympe.messages.rth.set_custom_location(  # https://developer.parrot.com/docs/olympe/arsdkng_rth.html#olympe.messages.rth.set_custom_location
 			latitude=request.latitude,  # latitude of the takeoff location
 			longitude=request.longitude,  # longitude of the takeoff location
 			altitude=request.altitude  # altitude of the custom location above takeoff (ATO).
@@ -1043,11 +1080,11 @@ class Anafi(Node):
 			target_azimuth=request.target_azimuth,
 			target_elevation=request.target_elevation,
 			change_of_scale=request.change_of_scale,
-			confidence_index=request.confidence_index,
+			confidence_index=int.from_bytes(request.confidence_index),
 			is_new_selection=request.is_new_selection
 			)).wait()
 		self.drone(olympe.messages.follow_me.start( # https://developer.parrot.com/docs/olympe/arsdkng_followme.html#olympe.messages.follow_me.start
-			mode=olympe.enums.follow_me.mode(request.mode) # https://developer.parrot.com/docs/olympe/arsdkng_followme.html#olympe.enums.follow_me.mode
+			mode=olympe.enums.follow_me.mode(int.from_bytes(request.mode)) # https://developer.parrot.com/docs/olympe/arsdkng_followme.html#olympe.enums.follow_me.mode
 			)).wait()
 		return response
 			
@@ -1192,7 +1229,7 @@ class Anafi(Node):
 			flag=1,
 			roll=int(bound_percentage(msg.roll/self.max_tilt*100)),  # roll [-100, 100] (% of max tilt)
 			pitch=int(bound_percentage(msg.pitch/self.max_tilt*100)),  # pitch [-100, 100] (% of max tilt)
-			yaw=int(bound_percentage(-msg.yaw/self.max_rotation_speed*100)),  # yaw rate [-100, 100] (% of max yaw rate)
+			yaw=int(bound_percentage(-msg.yaw/self.max_yaw_rotation_speed*100)),  # yaw rate [-100, 100] (% of max yaw rate)
 			gaz=int(bound_percentage(msg.gaz/self.max_vertical_speed*100)),  # vertical speed [-100, 100] (% of max vertical speed)
 			timestampAndSeqNum=0))
 
@@ -1204,7 +1241,7 @@ class Anafi(Node):
 			d_psi=msg.dyaw, # rotation of heading (rad)
 			max_horizontal_speed=self.max_horizontal_speed,
 			max_vertical_speed=self.max_vertical_speed,
-			max_yaw_rotation_speed=self.max_rotation_speed
+			max_yaw_rotation_speed=self.max_yaw_rotation_speed
 			)).wait().success()
 	
 	def moveTo_callback(self, msg):		
@@ -1212,29 +1249,29 @@ class Anafi(Node):
 			latitude=msg.latitude, # latitude (degrees)
 			longitude=msg.longitude, # longitude (degrees)
 			altitude=msg.altitude, # altitude (m)
-			orientation_mode='heading_start', # orientation mode {'to_target', 'heading_start', 'heading_during'}
+			orientation_mode=olympe.enums.move.orientation_mode(int.from_bytes(msg.orientation_mode)), # https://developer.parrot.com/docs/olympe/arsdkng_move.html#olympe.enums.move.orientation_mode
 			heading=msg.heading, # heading relative to the North (degrees)
 			max_horizontal_speed=self.max_horizontal_speed,
 			max_vertical_speed=self.max_vertical_speed,
-			max_yaw_rotation_speed=self.max_rotation_speed
+			max_yaw_rotation_speed=self.max_yaw_rotation_speed
 			)).wait().success()
 
-	def zoom_callback(self, msg):
+	def camera_callback(self, msg):
 		self.drone(camera.set_zoom_target(  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.messages.camera.set_zoom_target
 			cam_id=0,
-			control_mode='level' if msg.mode == 0 else 'velocity', # {'level', 'velocity'}
+			control_mode='level' if msg.mode == b'\x00' else 'velocity', # {'level', 'velocity'}
 			target=msg.zoom)) # (in level mode [1,max_zoom])
 		
 	def gimbal_callback(self, msg):
 		self.drone(gimbal.set_target(  # https://developer.parrot.com/docs/olympe/arsdkng_gimbal.html#olympe.messages.gimbal.set_target
 			gimbal_id=0,
-			control_mode='position' if msg.mode == 0 else 'velocity', # {'position', 'velocity'}
-			yaw_frame_of_reference='none',
-			yaw=0.0,
+			control_mode='position' if msg.mode == b'\x00' else 'velocity', # {'position', 'velocity'}
+			yaw_frame_of_reference=self.gimbal_frame,  # {'absolute', 'relative', 'none'}
+			yaw=-msg.yaw, 
 			pitch_frame_of_reference=self.gimbal_frame,  # {'absolute', 'relative', 'none'}
-			pitch=-msg.pitch,  # (in position mode [-135,105])
+			pitch=-msg.pitch,
 			roll_frame_of_reference=self.gimbal_frame,  # {'absolute', 'relative', 'none'}
-			roll=msg.roll)) # (in position mode [-38,38])
+			roll=msg.roll))
 
 	def switch_manual(self):
 		self.msg_skycontroller = SkycontrollerCommand()
@@ -1265,4 +1302,4 @@ def main(args=None):
 
 
 if __name__ == '__main__':
-    main()
+	main()

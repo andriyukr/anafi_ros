@@ -26,6 +26,7 @@ setup(
     entry_points={
         'console_scripts': [
         	'anafi = olympe_bridge_nodes.anafi:main',
+        	'test_anafi = olympe_bridge_nodes.test_anafi:main',
         ],
     },
 )

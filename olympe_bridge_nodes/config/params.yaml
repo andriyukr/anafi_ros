@@ -11,7 +11,7 @@ anafi:
       file_format: 0  # File format: 0 = jpeg; 1 = dng; 2 = jpeg and dng
       gimbal_absolute: false  # Enable gimbal roll/pitch compensation
       hdr: true  # Enable HDR
-      home_type: 2  # Home type for RTH: 1 = return to the last takeoff location; 3 = return to a user-set custom location; 4 = return to the pilot position
+      home_type: 4  # Home type for RTH: 1 = return to the last takeoff location; 3 = return to a user-set custom location; 4 = return to the pilot position
       hovering_altitude: 10.0  # RTH ending hovering altitude (in m) [1.0, 10.0]
       image_style: 0  # Images style: 0 = natural look style; 1 = produces flat and desaturated images, best for post-processing; 2 = intense style: bright colors, warm shade, high contrast; 3 = pastel style: soft colors, cold shade, low contrast
       max_altitude: 2.0  # Max altitude (in m) [0.5, 4000.0]

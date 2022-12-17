@@ -5,7 +5,7 @@ import math
 import olympe
 
 from std_msgs.msg import Float32, UInt8, UInt64
-from geometry_msgs.msg import Vector3Stamped
+from geometry_msgs.msg import Vector3Stamped, PointStamped
 from sensor_msgs.msg import NavSatFix
 from rclpy.qos import qos_profile_system_default, qos_profile_sensor_data
 
@@ -27,6 +27,7 @@ from olympe.messages.ardrone3.PilotingState import VibrationLevelChanged
 from olympe.enums.ardrone3.PilotingState import VibrationLevelChanged_State
 from olympe.messages.ardrone3.PilotingState import WindStateChanged
 from olympe.enums.ardrone3.PilotingState import WindStateChanged_State
+from olympe.messages.ardrone3.GPSSettingsState import HomeChanged
 from olympe.messages.common.CommonState import LinkSignalQuality
 from olympe.messages.common.CommonState import MassStorageInfoStateListChanged
 from olympe.messages.common.CommonState import SensorsStatesListChanged
@@ -57,6 +58,8 @@ from olympe.messages.follow_me import target_trajectory
 from olympe.messages.gimbal import attitude as gimbal_attitude
 from olympe.messages.battery import health
 
+
+
 from olympe_bridge_interfaces.msg import TargetTrajectory
 
 
@@ -85,7 +88,7 @@ class EventListenerAnafi(olympe.EventListener):
 
 		self.pub_zoom = self.drone.node.create_publisher(Float32, 'camera/zoom', qos_profile_system_default)
 		self.pub_gps_satellites = self.drone.node.create_publisher(UInt8, 'drone/gps/satellites', qos_profile_system_default)
-		self.pub_altitude_above_TO = self.drone.node.create_publisher(Float32, 'drone/altitude_above_TO', qos_profile_sensor_data)
+		self.pub_altitude_above_to = self.drone.node.create_publisher(Float32, 'drone/altitude_above_to', qos_profile_sensor_data)
 		self.pub_rpy_slow = self.drone.node.create_publisher(Vector3Stamped, 'drone/rpy_slow', qos_profile_sensor_data)
 		self.pub_gps_location = self.drone.node.create_publisher(NavSatFix, 'drone/gps/location', qos_profile_sensor_data)
 		self.pub_battery_voltage = self.drone.node.create_publisher(Float32, 'battery/voltage', qos_profile_system_default)
@@ -93,16 +96,18 @@ class EventListenerAnafi(olympe.EventListener):
 		self.pub_gimbal_relative = self.drone.node.create_publisher(Vector3Stamped, 'gimbal/relative', qos_profile_sensor_data)
 		self.pub_gimbal_absolute = self.drone.node.create_publisher(Vector3Stamped, 'gimbal/absolute', qos_profile_sensor_data)
 		self.pub_media_available = self.drone.node.create_publisher(UInt64, 'media/available', qos_profile_system_default)
+		self.pub_home_location = self.drone.node.create_publisher(PointStamped, 'home/location', qos_profile_system_default)  # TODO: change to Location message
 
 		self.msg_zoom = Float32()
 		self.msg_gps_satellites = UInt8()
-		self.msg_altitude_above_TO = Float32()
+		self.msg_altitude_above_to = Float32()
 		self.msg_attitude = Vector3Stamped()
 		self.msg_gps_location = NavSatFix()
 		self.msg_battery_voltage = Float32()
 		self.msg_trajectory = TargetTrajectory()
 		self.msg_gimbal = Vector3Stamped()
 		self.msg_media_available = UInt64()
+		self.msg_home_location = PointStamped()
 
 	""" 
 	FATAL ERRORS 
@@ -307,8 +312,8 @@ class EventListenerAnafi(olympe.EventListener):
 
 	@olympe.listen_event(AltitudeChanged(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.PilotingState.AltitudeChanged
 	def onAltitudeChanged(self, event, scheduler):
-		self.msg_altitude_above_TO.data = event.args['altitude']
-		self.pub_altitude_above_TO.publish(self.msg_altitude_above_TO)
+		self.msg_altitude_above_to.data = event.args['altitude']
+		self.pub_altitude_above_to.publish(self.msg_altitude_above_to)
 
 	@olympe.listen_event(AttitudeChanged(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.PilotingState.AttitudeChanged
 	def onAttitudeChanged(self, event, scheduler):  # publishes at lower rate (5Hz) than 'pub_rpy' (30Hz) but has higher reaction time (approx. 100ms faster)
@@ -394,6 +399,18 @@ class EventListenerAnafi(olympe.EventListener):
 	def on_user_storage_monitor(self, event, scheduler):
 		self.msg_media_available.data = event.args['available_bytes']
 		self.pub_media_available.publish(self.msg_media_available)
+
+	@olympe.listen_event(HomeChanged(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_gps.html#olympe.messages.ardrone3.GPSSettingsState.HomeChanged
+	def on_home_changed(self, event, scheduler):
+		home = event.args
+		self.drone.node.get_logger().info('home: ' + str(home))
+		if home['latitude'] != 500 and home['longitude'] != 500 and home['altitude'] != 500:
+			self.msg_home_location.header.stamp = self.node.get_clock().now().to_msg()
+			self.msg_home_location.header.frame_id = '/world'
+			self.msg_home_location.point.x = home['latitude']
+			self.msg_home_location.point.y = home['longitude']
+			self.msg_home_location.point.z = home['altitude']
+			self.pub_home_location.publish(self.msg_home_location)
 
 	""" 
 	All other events
