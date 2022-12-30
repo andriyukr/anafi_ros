@@ -1,5 +1,4 @@
-std_msgs/Header header
-
+std_msgs/Header header 	# message header
 int8 x			# x-axis [%]
 int8 y			# y-axis [%]
 int8 z			# z-axis [%]

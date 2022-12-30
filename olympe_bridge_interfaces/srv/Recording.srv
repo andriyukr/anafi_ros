@@ -1,0 +1,6 @@
+uint8 mode 0 		# video recording mode {0: standard; 1: hyperlapse; 2: slow motion; 3: high-framerate}
+uint8 resolution 3 	# recording resolution {0: 4096x2160 (4K cinema); 1: 3840x2160 (UHD); 2: 2704x1524; 3: 1920x1080 (Full HD); 4: 1280x720 (HD); 5: 856x480; 6: 1440x1080 (SD); 7: 960x720 (SD); 8: 7680x4320 (UHD); 9: 5120x2880} [pixels x pixels]
+uint8 framerate 2 	# recording framerate {0: 24; 1: 25; 2: 30; 3: 48; 4: 50; 5: 60; 6: 96; 7: 100; 8: 120; 9: 9 (for thermal only); 10: 15; 11: 20; 12: 192; 13: 200; 14: 240; 15: 10 (for thermal only); 16: 8 (for thermal only)} [fps] 
+uint8 hyperlapse 1 	# hyperlapse value {0: 1/15; 1: 1/30; 2: 1/60; 3: 1/120; 4: 1/240} [1/frames]
+---
+string media_id 	# media id

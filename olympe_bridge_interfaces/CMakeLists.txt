@@ -30,6 +30,8 @@ set(srv_files
 	"srv/FlightPlan.srv"
 	"srv/FollowMe.srv"
 	"srv/Location.srv"
+	"srv/Photo.srv"
+	"srv/Recording.srv"
 	"srv/String.srv"
 )
 

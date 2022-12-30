@@ -1,5 +1,4 @@
-std_msgs/Header header
-
+std_msgs/Header header 	# message header
 float64 latitude 	# target latitude [deg]
 float64 longitude 	# target longitude [deg]
 float32 altitude 	# target altitude [m] (relative to sea level)

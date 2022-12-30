@@ -27,6 +27,7 @@ setup(
         'console_scripts': [
         	'anafi = olympe_bridge_nodes.anafi:main',
         	'test_anafi = olympe_bridge_nodes.test_anafi:main',
+        	'collect_gimbal = olympe_bridge_nodes.collect_gimbal:main',
         ],
     },
 )

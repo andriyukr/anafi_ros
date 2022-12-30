@@ -389,10 +389,11 @@ class EventListenerAnafi(olympe.EventListener):
 		self.msg_gimbal.vector.y = -gimbal['pitch_absolute']
 		self.msg_gimbal.vector.z = -gimbal['yaw_absolute']
 		self.pub_gimbal_absolute.publish(self.msg_gimbal)
-		self.msg_gimbal.header.frame_id = 'body'
+		self.msg_gimbal.header.frame_id = '/body'
 		self.msg_gimbal.vector.x = gimbal['roll_relative']
 		self.msg_gimbal.vector.y = -gimbal['pitch_relative']
 		self.msg_gimbal.vector.z = -gimbal['yaw_relative']
+		#print("roll: " + str(gimbal['roll_frame_of_reference']) + ", pitch: " + str(gimbal['pitch_frame_of_reference']) + ", yaw: " + str(gimbal['yaw_frame_of_reference']))
 		self.pub_gimbal_relative.publish(self.msg_gimbal)
 
 	@olympe.listen_event(user_storage_monitor(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_user_storage.html#olympe.messages.user_storage.monitor
