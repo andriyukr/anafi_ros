@@ -5,6 +5,7 @@ anafi:
       banked_turn: false  			# Enable banked turn
       camera_mode: 0  				# Camera mode: 0 = camera in recording mode, 1 = camera in photo mode
       camera_operated: false  			# Commands are relative to the camera pitch
+      disparity_map: true 			# Enable disparity map image streaming
       download_folder: ~/Pictures/Anafi 	# Absolute path to the download folder
       ev_compensation: 9  			# EV compensation: 0 = -3.00 EV; 3 = -2.00 EV; 6 = -1.00 EV; 9 = 0.00 EV; 12 = 1.00 EV; 15 = 2.00 EV; 18 = 3.00 EV
       hdr: true  				# Enable HDR
@@ -20,8 +21,10 @@ anafi:
       max_vertical_speed: 1.0  			# Max vertical speed (in m/s) [0.1, 4.0]
       max_yaw_rotation_speed: 180.0  		# Max yaw rotation speed (in deg/s) [3.0, 200.0]
       max_zoom_speed: 10.0  			# Max zoom speed (in tan(deg)/sec) [0.1, 10.0]
+      obstacle_avoidance: true 			# Enable obstacle avoidance
       precise_home: true  			# Enable precise RTH
       rth_autotrigger: true  			# Enable auto trigger RTH
       rth_ending_behavior: 1  			# Ending behavior for RTH: 0 = land after RTH; 1 = hover after RTH
       rth_min_altitude: 20.0  			# RTH minimum altitude (in m) [20.0, 100.0]
       streaming_mode: 0  			# Streaming mode: 0 = minimize latency with average reliability (best for piloting); 1 = maximize the reliability with an average latency; 2 = maximize the reliability using a framerate decimation with an average latency
+      thermal_image: true 			# Enable thermal image streaming

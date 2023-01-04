@@ -31,7 +31,7 @@ def generate_launch_description():
 		emulate_tty=True,
 		arguments=['--ros-args', '--params-file', config, '--log-level', 'INFO'],
 		parameters=[
-			{'model': ''},  # {'4k', 'thermal', 'usa', 'ai', 'sphinx'}
+			{'model': '4k'},  # {'4k', 'thermal', 'usa', 'ai', 'sphinx'}
 			{'ip': LaunchConfiguration('ip')},  # Anafi: '192.168.42.1', SkyController: '192.168.53.1'
 			{'skycontroller_enabled': True},  # {True, False}
 			{'rest_api_version': 1},

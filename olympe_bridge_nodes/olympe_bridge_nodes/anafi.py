@@ -16,6 +16,7 @@ import traceback
 import time
 import datetime
 import logging
+import logness
 import sys
 import yaml
 import olympe
@@ -63,11 +64,28 @@ from olympe_bridge_nodes.event_listener_anafi import EventListenerAnafi
 from olympe_bridge_nodes.event_listener_skycontroller import EventListenerSkyController
 from olympe_bridge_nodes.utils import euler_from_quaternion, bound_percentage, bound
 
-olympe.log.update_config({"loggers": {"olympe": {"level": "ERROR"}}})  # {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"}
-
+logness.update_config({  # https://developer.parrot.com/docs/olympe/olympeapi.html#olympe.log.update_config
+	"handlers": {
+		"log_file": {
+			"class": "logness.FileHandler",
+			"formatter": "default_formatter",
+			"filename": "olympe.log"
+		}
+	},
+    "loggers": {
+        "olympe": {
+			"level": "WARNING",  # {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"}
+			"handlers": ["console", "log_file"]
+        },
+        "ulog": {
+            "level": "CRITICAL",  # {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"}
+			"handlers": ["console", "log_file"]
+        }
+    }
+})
 
 class Anafi(Node):
-	models = {2324:"4k", 2329:"thermal", 2334:"usa", 2330:"ai"}
+	models = {2324:"4k", 2329:"thermal", 2334:"usa", 2330:"ai"}  # correspondence between model's code and model's name
 
 	def __init__(self):
 		self.node = rclpy.create_node('anafi')
@@ -179,7 +197,7 @@ class Anafi(Node):
 		else:  # connect to Anafi
 			self.node.get_logger().info("Connecting directly to Anafi")
 		self.drone = olympe.Drone(self.ip)
-		# self.skyctrl = self.drone  # TODO: remove
+		self.skyctrl = self.drone  # TODO: remove
 
 		# Create event listeners
 		self.event_listener_anafi = EventListenerAnafi(self)
@@ -192,99 +210,106 @@ class Anafi(Node):
 
 		self.connect()
 
+		if self.skycontroller_enabled:  # only SkyController allows to retrieve the model of the drone
+			#model = self.drone.get_state(olympe.messages.drone_manager.known_drone_item).popitem(last=False)[1]['model'] # https://developer.parrot.com/docs/olympe/arsdkng_drone_manager.html#olympe.messages.drone_manager.known_drone_item
+			model = self.drone.get_state(olympe.messages.mapper.active_product)['product'] # https://developer.parrot.com/docs/olympe/arsdkng_mapper.html#olympe.messages.mapper.active_product
+			self.model = self.models.get(model, self.model)
+
+		self.node.add_on_set_parameters_callback(self.parameter_callback)
+
 		# Dynamic parameters
 		self.node.declare_parameter("max_tilt", 10.0,  # 10.0
 									ParameterDescriptor(description="Max pitch/roll (in deg) [1.0, 40.0]",
 														floating_point_range=[FloatingPointRange(from_value=1.0,
 																								 to_value=40.0,
 																								 step=0.0)]))
-		self.node.declare_parameter("max_vertical_speed", 1.0,   # 3.0
+		self.node.declare_parameter("max_vertical_speed", 1.0,  # 3.0
 									ParameterDescriptor(description="Max vertical speed (in m/s) [0.1, 4.0]",
 														floating_point_range=[FloatingPointRange(from_value=0.1,
 																								 to_value=4.0,
 																								 step=0.0)]))
-		self.node.declare_parameter("max_horizontal_speed", 1.0,   #
+		self.node.declare_parameter("max_horizontal_speed", 1.0,  #
 									ParameterDescriptor(description="Max horizontal speed (in m/s) [0.1, 15.0]",
 														floating_point_range=[FloatingPointRange(from_value=0.1,
 																								 to_value=15.0,
 																								 step=0.0)]))
-		self.node.declare_parameter("max_yaw_rotation_speed", 180.0,   # 40.0
+		self.node.declare_parameter("max_yaw_rotation_speed", 180.0,  # 40.0
 									ParameterDescriptor(description="Max yaw rotation speed (in deg/s) [3.0, 200.0]",
 														floating_point_range=[FloatingPointRange(from_value=3.0,
 																								 to_value=200.0,
 																								 step=0.0)]))
-		self.node.declare_parameter("max_pitch_roll_rotation_speed", 200.0,   # 116.0
+		self.node.declare_parameter("max_pitch_roll_rotation_speed", 200.0,  # 116.0
 									ParameterDescriptor(description="Max pitch/roll rotation speed (in deg/s) [40.0, 300.0]",
 														floating_point_range=[FloatingPointRange(from_value=40.0,
 																								 to_value=300.0,
 																								 step=0.0)]))
-		self.node.declare_parameter("max_distance", 10.0,   # 100.0
+		self.node.declare_parameter("max_distance", 10.0,  # 100.0
 									ParameterDescriptor(description="Max distance (in m) [10.0, 4000.0]",
 														floating_point_range=[FloatingPointRange(from_value=10.0,
 																								 to_value=4000.0,
 																								 step=0.0)]))
-		self.node.declare_parameter("max_altitude", 2.0,   # 150.0
+		self.node.declare_parameter("max_altitude", 2.0,  # 150.0
 									ParameterDescriptor(description="Max altitude (in m) [0.5, 4000.0]",
 														floating_point_range=[FloatingPointRange(from_value=0.5,
 																								 to_value=4000.0,
 																								 step=0.0)]))
-		self.node.declare_parameter("banked_turn", False,
-									ParameterDescriptor(description="Enable banked turn"))  # False
-		self.node.declare_parameter("camera_operated", False,
-									ParameterDescriptor(description="Commands are relative to the camera pitch"))  # False
+		self.node.declare_parameter("banked_turn", False,  # False
+									ParameterDescriptor(description="Enable banked turn"))
+		self.node.declare_parameter("camera_operated", False,  # False
+									ParameterDescriptor(description="Commands are relative to the camera pitch"))
 		self.node.declare_parameter("home_type", 1,   # 1
 									ParameterDescriptor(description="Home type for RTH: 1 = return to the last takeoff location; 3 = return to a user-set custom location; 4 = return to the pilot position",
 														integer_range=[IntegerRange(from_value=1,
 																					to_value=4,
 																					step=1)]))
-		self.node.declare_parameter("rth_min_altitude", 20.0,   # 20.0
+		self.node.declare_parameter("rth_min_altitude", 20.0,  # 20.0
 									ParameterDescriptor(description="RTH minimum altitude (in m) [20.0, 100.0]",
 														floating_point_range=[FloatingPointRange(from_value=20.0,
 																								 to_value=100.0,
 																								 step=0.0)]))
-		self.node.declare_parameter("rth_ending_behavior", 1,   # 0
+		self.node.declare_parameter("rth_ending_behavior", 1,  # 0
 									ParameterDescriptor(description="Ending behavior for RTH: 0 = land after RTH; 1 = hover after RTH",
 														integer_range=[IntegerRange(from_value=0,
 																					to_value=1,
 																					step=1)]))
-		self.node.declare_parameter("hovering_altitude", 10.0,   # 10.0
+		self.node.declare_parameter("hovering_altitude", 10.0,  # 10.0
 									ParameterDescriptor(description="RTH ending hovering altitude (in m) [1.0, 10.0]",
 														floating_point_range=[FloatingPointRange(from_value=1.0,
 																								 to_value=10.0,
 																								 step=0.0)]))
-		self.node.declare_parameter("rth_autotrigger", True,
-									ParameterDescriptor(description="Enable auto trigger RTH"))  # True
-		self.node.declare_parameter("precise_home", True,
-									ParameterDescriptor(description="Enable precise RTH"))  # False
-		self.node.declare_parameter("hdr", True,
-									ParameterDescriptor(description="Enable HDR"))  # False
-		self.node.declare_parameter("camera_mode", 0,   # 0
+		self.node.declare_parameter("rth_autotrigger", True,  # True
+									ParameterDescriptor(description="Enable auto trigger RTH"))
+		self.node.declare_parameter("precise_home", True,  # False
+									ParameterDescriptor(description="Enable precise RTH"))
+		self.node.declare_parameter("hdr", True,  # False
+									ParameterDescriptor(description="Enable HDR"))
+		self.node.declare_parameter("camera_mode", 0,  # 0
 									ParameterDescriptor(description="Camera mode: 0 = camera in recording mode, 1 = camera in photo mode",
 														integer_range=[IntegerRange(from_value=0,
 																					to_value=1,
 																					step=1)]))
-		self.node.declare_parameter("ev_compensation", 9,   # 3
+		self.node.declare_parameter("ev_compensation", 9,  # 3
 									ParameterDescriptor(description="EV compensation: 0 = -3.00 EV; 3 = -2.00 EV; 6 = -1.00 EV; 9 = 0.00 EV; 12 = 1.00 EV; 15 = 2.00 EV; 18 = 3.00 EV",
 														integer_range=[IntegerRange(from_value=0,
 																				    to_value=18,
 																				    step=1)]))
-		self.node.declare_parameter("streaming_mode", 0,   # 0
+		self.node.declare_parameter("streaming_mode", 0,  # 0
 									ParameterDescriptor(description="Streaming mode: 0 = minimize latency with average reliability (best for piloting); 1 = maximize the reliability with an average latency; 2 = maximize the reliability using a framerate decimation with an average latency",
 														integer_range=[IntegerRange(from_value=0,
 																					to_value=2,
 																					step=1)]))
-		self.node.declare_parameter("image_style", 0,   # 0
+		self.node.declare_parameter("image_style", 0,  # 0
 									ParameterDescriptor(description="Images style: 0 = natural look style; 1 = produces flat and desaturated images, best for post-processing; 2 = intense style: bright colors, warm shade, high contrast; 3 = pastel style: soft colors, cold shade, low contrast",
 														integer_range=[IntegerRange(from_value=0,
 																					to_value=3,
 																					step=1)]))
-		self.node.declare_parameter("max_zoom_speed", 10.0,   # 0.34
+		self.node.declare_parameter("max_zoom_speed", 10.0,  # 0.34
 									ParameterDescriptor(description="Max zoom speed (in tan(deg)/sec) [0.1, 10.0]",
 														floating_point_range=[FloatingPointRange(from_value=0.1,
 																								 to_value=10.0,
 																								 step=0.0)]))
-		self.node.declare_parameter("autorecord", False,
-									ParameterDescriptor(description="Enable autorecord at takeoff"))  # True
+		self.node.declare_parameter("autorecord", False,  # True
+									ParameterDescriptor(description="Enable autorecord at takeoff"))
 		self.node.declare_parameter("download_folder", "~/Pictures/Anafi",
 									ParameterDescriptor(description="Absolute path to the download folder"))
 		self.node.declare_parameter("max_gimbal_speed", 180.0,  #
@@ -292,11 +317,14 @@ class Anafi(Node):
 														floating_point_range=[FloatingPointRange(from_value=1.0,
 																								 to_value=180.0,
 																								 step=0.0)]))
-
-		if self.skycontroller_enabled:  # only SkyController allows to retrieve the model of the drone
-			#model = self.drone.get_state(olympe.messages.drone_manager.known_drone_item).popitem(last=False)[1]['model'] # https://developer.parrot.com/docs/olympe/arsdkng_drone_manager.html#olympe.messages.drone_manager.known_drone_item
-			model = self.drone.get_state(olympe.messages.mapper.active_product)['product'] # https://developer.parrot.com/docs/olympe/arsdkng_mapper.html#olympe.messages.mapper.active_product
-			self.model = self.models.get(model, self.model)
+		if self.model in {'thermal', 'usa'}:
+			self.node.declare_parameter("thermal_image", True,  # False
+										ParameterDescriptor(description="Enable stream thermal image"))
+		if self.model in {'ai'}:
+			self.node.declare_parameter("disparity_map", True,  # False
+										ParameterDescriptor(description="Enable stream disparity map image"))
+			self.node.declare_parameter("obstacle_avoidance", True,  # True
+										ParameterDescriptor(description="Enable obstacle avoidance"))
 
 		self.node.get_logger().info('Drone model: ' + self.model)
 		self.node.set_parameters([Parameter('model', rclpy.Parameter.Type.STRING, self.model)])
@@ -376,15 +404,8 @@ class Anafi(Node):
 				relative_range='unlocked',  # https://developer.parrot.com/docs/olympe/arsdkng_thermal.html#olympe.enums.thermal.relative_range_mode
 				spot_type='hot',  # https://developer.parrot.com/docs/olympe/arsdkng_thermal.html#olympe.enums.thermal.spot_type
 				spot_threshold=0.9)).wait()
-			self.drone(thermal.set_rendering(  # https://developer.parrot.com/docs/olympe/arsdkng_thermal.html#olympe.messages.thermal.set_rendering
-				mode='blended',  # https://developer.parrot.com/docs/olympe/arsdkng_thermal.html#olympe.enums.thermal.rendering_mode
-				blending_rate=0.5)).wait()
 			self.drone(thermal.set_sensitivity(range='low')).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_thermal.html#olympe.messages.thermal.set_sensitivity
 			self.drone(thermal.shutter_mode(current_trigger='auto')).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_thermal.html#olympe.messages.thermal.shutter_mode
-
-		if self.model in {'ai'}:
-			self.drone(obstacle_avoidance.set_mode( # TODO: make it parametric. https://developer.parrot.com/docs/olympe/arsdkng_obstacle_avoidance.html#olympe.messages.obstacle_avoidance.set_mode
-				mode=obstacle_avoidance_mode(int(1))))  # https://developer.parrot.com/docs/olympe/arsdkng_obstacle_avoidance.html#olympe.enums.obstacle_avoidance.mode
 
 		if self.skycontroller_enabled:
 			skyctrl_version = self.drone.get_state(olympe.messages.skyctrl.SettingsState.ProductVersionChanged)  # https://developer.parrot.com/docs/olympe/arsdkng_skyctrl_settings.html#olympe.messages.skyctrl.SettingsState.ProductVersionChanged
@@ -399,7 +420,7 @@ class Anafi(Node):
 				self.node.get_logger().warning('Mediastore state is indexig')
 			else:
 				self.node.get_logger().info('Mediastore state is indexed')
-				
+
 		# Setup the callback functions to do some live video processing
 		self.processing_thread = threading.Thread(target=self.yuv_frame_processing)
 		self.drone.streaming.set_callbacks(
@@ -464,7 +485,6 @@ class Anafi(Node):
 		self.timer_check = self.node.create_timer(0.01, self.check_callback)
 		self.timer_fast = self.node.create_timer(0.01, self.fast_callback)
 		self.timer_slow = self.node.create_timer(1.00, self.slow_callback)
-		self.node.add_on_set_parameters_callback(self.parameter_callback)
 
 		self.frame_queue = queue.Queue(maxsize=1)  # TODO: replace by a shared variable
 		
@@ -478,11 +498,11 @@ class Anafi(Node):
 			self.timer_slow.destroy()
 		if 'self.processing_thread' in vars():
 			self.processing_thread.join()
+			self.drone.streaming.stop()
 
 		self.event_listener_anafi.unsubscribe()
 		self.event_listener_skycontroller.unsubscribe()
 
-		self.drone.streaming.stop()
 		self.drone.disconnect()
 
 	def check_callback(self):  # checks for the connection
@@ -530,58 +550,62 @@ class Anafi(Node):
 				self.drone(MaxRotationSpeed(self.max_yaw_rotation_speed))  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.SpeedSettings.MaxRotationSpeed
 				self.node.get_logger().debug("Parameter 'max_yaw_rotation_speed' set to %.1f (deg/s)" % self.max_yaw_rotation_speed)
 			if parameter.name == 'max_pitch_roll_rotation_speed':
-				self.max_pitch_roll_rotation_speed = parameter.value
-				self.drone(MaxPitchRollRotationSpeed(self.max_pitch_roll_rotation_speed))  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.SpeedSettings.MaxPitchRollRotationSpeed
-				self.node.get_logger().debug("Parameter 'max_pitch_roll_rotation_speed' set to %.1f (deg/s)" % self.max_pitch_roll_rotation_speed)
+				max_pitch_roll_rotation_speed = parameter.value
+				self.drone(MaxPitchRollRotationSpeed(max_pitch_roll_rotation_speed))  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.SpeedSettings.MaxPitchRollRotationSpeed
+				self.node.get_logger().debug("Parameter 'max_pitch_roll_rotation_speed' set to %.1f (deg/s)" % max_pitch_roll_rotation_speed)
 			if parameter.name == 'max_distance':
-				self.max_distance = parameter.value
-				self.drone(MaxDistance(self.max_distance))  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.PilotingSettings.MaxDistance
-				self.node.get_logger().debug("Parameter 'max_distance' set to %.1f (m)" % self.max_distance)
+				max_distance = parameter.value
+				self.drone(MaxDistance(max_distance))  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.PilotingSettings.MaxDistance
+				self.node.get_logger().debug("Parameter 'max_distance' set to %.1f (m)" % max_distance)
 			if parameter.name == 'max_altitude':
-				self.max_altitude = parameter.value
-				self.drone(MaxAltitude(self.max_altitude))  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.PilotingSettings.MaxAltitude
-				self.node.get_logger().debug("Parameter 'max_altitude' set to %.1f (m)" % self.max_altitude)
+				max_altitude = parameter.value
+				self.drone(MaxAltitude(max_altitude))  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.PilotingSettings.MaxAltitude
+				self.node.get_logger().debug("Parameter 'max_altitude' set to %.1f (m)" % max_altitude)
 			if parameter.name == 'banked_turn':
-				self.banked_turn = parameter.value
-				self.drone(BankedTurn(int(self.banked_turn)))  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.PilotingSettings.BankedTurn
-				self.node.get_logger().debug("Parameter 'banked_turn' set to %r" % self.banked_turn)
+				banked_turn = parameter.value
+				self.drone(BankedTurn(int(banked_turn)))  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.PilotingSettings.BankedTurn
+				self.node.get_logger().debug("Parameter 'banked_turn' set to %r" % banked_turn)
 			if parameter.name == 'camera_operated':
-				self.camera_operated = parameter.value
-				self.drone(set_style(style=style(int(self.camera_operated))))  # https://developer.parrot.com/docs/olympe/arsdkng_piloting_style.html#olympe.messages.piloting_style.set_style
-				self.node.get_logger().debug("Parameter 'camera_operated' set to %r" % self.camera_operated)
+				camera_operated = parameter.value
+				self.drone(set_style(style=style(int(camera_operated))))  # https://developer.parrot.com/docs/olympe/arsdkng_piloting_style.html#olympe.messages.piloting_style.set_style
+				self.node.get_logger().debug("Parameter 'camera_operated' set to %r" % camera_operated)
+			if parameter.name == 'obstacle_avoidance' and self.model in {'ai'}:
+				obstacle_avoidance_enabled = parameter.value
+				self.drone(obstacle_avoidance.set_mode(  # TODO: make it parametric. https://developer.parrot.com/docs/olympe/arsdkng_obstacle_avoidance.html#olympe.messages.obstacle_avoidance.set_mode
+					mode=obstacle_avoidance_mode(int(obstacle_avoidance_enabled))))  # https://developer.parrot.com/docs/olympe/arsdkng_obstacle_avoidance.html#olympe.enums.obstacle_avoidance.mode
+				self.node.get_logger().debug("Parameter 'obstacle_avoidance' set to '%s'" % obstacle_avoidance_mode(int(obstacle_avoidance_enabled)))
 
 			# RTH related
 			if parameter.name == 'home_type':
-				self.home_type = parameter.value
+				home_type = parameter.value
 				self.drone(olympe.messages.rth.set_preferred_home_type(  # https://developer.parrot.com/docs/olympe/arsdkng_rth.html#olympe.messages.rth.set_preferred_home_type
-					type=olympe.enums.rth.home_type(self.home_type)))  # https://developer.parrot.com/docs/olympe/arsdkng_rth.html#olympe.enums.rth.home_type
-				self.node.get_logger().debug("Parameter 'home_type' set to '%s'" % olympe.enums.rth.home_type(self.home_type))
+					type=olympe.enums.rth.home_type(home_type)))  # https://developer.parrot.com/docs/olympe/arsdkng_rth.html#olympe.enums.rth.home_type
+				self.node.get_logger().debug("Parameter 'home_type' set to '%s'" % olympe.enums.rth.home_type(home_type))
 			if parameter.name == 'rth_min_altitude':
-				self.rth_min_altitude = parameter.value
-				self.drone(set_min_altitude(
-					# https://developer.parrot.com/docs/olympe/arsdkng_rth.html#olympe.messages.rth.set_min_altitude
-					altitude=self.rth_min_altitude))  # ATO altitude (m)
-				self.node.get_logger().debug("Parameter 'rth_min_altitude' set to %.1f (m)" % self.rth_min_altitude)
+				rth_min_altitude = parameter.value
+				self.drone(set_min_altitude(  # https://developer.parrot.com/docs/olympe/arsdkng_rth.html#olympe.messages.rth.set_min_altitude
+					altitude=rth_min_altitude))  # ATO altitude (m)
+				self.node.get_logger().debug("Parameter 'rth_min_altitude' set to %.1f (m)" % rth_min_altitude)
 			if parameter.name == 'rth_ending_behavior':
-				self.rth_ending_behavior = parameter.value
+				rth_ending_behavior = parameter.value
 				self.drone(set_ending_behavior(  # https://developer.parrot.com/docs/olympe/arsdkng_rth.html#olympe.messages.rth.set_ending_behavior
-					ending_behavior=olympe.enums.rth.ending_behavior(self.rth_ending_behavior)))  # https://developer.parrot.com/docs/olympe/arsdkng_rth.html#olympe.enums.rth.ending_behavior
-				self.node.get_logger().debug("Parameter 'rth_ending_behavior' set to '%s'" % olympe.enums.rth.ending_behavior(self.rth_ending_behavior))
+					ending_behavior=olympe.enums.rth.ending_behavior(rth_ending_behavior)))  # https://developer.parrot.com/docs/olympe/arsdkng_rth.html#olympe.enums.rth.ending_behavior
+				self.node.get_logger().debug("Parameter 'rth_ending_behavior' set to '%s'" % olympe.enums.rth.ending_behavior(rth_ending_behavior))
 			if parameter.name == 'hovering_altitude':
-				self.hovering_altitude = parameter.value
+				hovering_altitude = parameter.value
 				self.drone(set_ending_hovering_altitude(  # https://developer.parrot.com/docs/olympe/arsdkng_rth.html#olympe.messages.rth.set_ending_hovering_altitude
-					altitude=self.hovering_altitude))  # AGL altitude (m)
-				self.node.get_logger().debug("Parameter 'hovering_altitude' set to %.1f (m)" % self.hovering_altitude)
+					altitude=hovering_altitude))  # AGL altitude (m)
+				self.node.get_logger().debug("Parameter 'hovering_altitude' set to %.1f (m)" % hovering_altitude)
 			if parameter.name == 'rth_autotrigger':
-				self.rth_autotrigger = parameter.value
+				rth_autotrigger = parameter.value
 				self.drone(olympe.messages.rth.set_auto_trigger_mode(  # https://developer.parrot.com/docs/olympe/arsdkng_rth.html#olympe.messages.rth.set_auto_trigger_mode
-					mode=olympe.enums.rth.auto_trigger_mode(self.rth_autotrigger)))  # https://developer.parrot.com/docs/olympe/arsdkng_rth.html#olympe.enums.rth.auto_trigger_mode
-				self.node.get_logger().debug("Parameter 'rth_autotrigger' set to '%s'" % olympe.enums.rth.auto_trigger_mode(self.rth_autotrigger))
+					mode=olympe.enums.rth.auto_trigger_mode(rth_autotrigger)))  # https://developer.parrot.com/docs/olympe/arsdkng_rth.html#olympe.enums.rth.auto_trigger_mode
+				self.node.get_logger().debug("Parameter 'rth_autotrigger' set to '%s'" % olympe.enums.rth.auto_trigger_mode(rth_autotrigger))
 			if parameter.name == 'precise_home':
-				self.precise_home = parameter.value
+				precise_home = parameter.value
 				self.drone(precise_home_set_mode(  # https://developer.parrot.com/docs/olympe/arsdkng_precise_home.html#olympe.messages.precise_home.set_mode
-					mode=precise_home_mode(self.precise_home)))  # https://developer.parrot.com/docs/olympe/arsdkng_precise_home.html#olympe.enums.precise_home.mode
-				self.node.get_logger().debug("Parameter 'precise_home' set to '%s'" % precise_home_mode(self.precise_home))
+					mode=precise_home_mode(precise_home)))  # https://developer.parrot.com/docs/olympe/arsdkng_precise_home.html#olympe.enums.precise_home.mode
+				self.node.get_logger().debug("Parameter 'precise_home' set to '%s'" % precise_home_mode(precise_home))
 
 			# camera related
 			if parameter.name == 'camera_mode':
@@ -591,45 +615,54 @@ class Anafi(Node):
 					value=olympe.enums.camera.camera_mode(self.camera_mode)))  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.enums.camera.camera_mode
 				self.node.get_logger().debug("Parameter 'camera_mode' set to '%s'" % olympe.enums.camera.camera_mode(self.camera_mode))
 			if parameter.name == 'hdr':
-				self.hdr = parameter.value
+				hdr = parameter.value
 				self.drone(camera.set_hdr_setting(  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.messages.camera.set_hdr_setting
 					cam_id=0,
-					value=olympe.enums.camera.state(
-						int(self.hdr))))  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.enums.camera.state FIXME: CHECK for a potencial bug
-				self.node.get_logger().debug("Parameter 'hdr' set to '%s'" % olympe.enums.camera.state(int(self.hdr)))
+					value=olympe.enums.camera.state(int(hdr))))  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.enums.camera.state FIXME: CHECK for a potential bug
+				self.node.get_logger().debug("Parameter 'hdr' set to '%s'" % olympe.enums.camera.state(int(hdr)))
 			if parameter.name == 'ev_compensation':
-				self.ev_compensation = parameter.value
+				ev_compensation = parameter.value
 				self.drone(camera.set_ev_compensation(  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.messages.camera.set_ev_compensation
 					cam_id=0,
-					value=olympe.enums.camera.ev_compensation(self.ev_compensation)))  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.enums.camera.ev_compensation
-				self.node.get_logger().debug("Parameter 'ev_compensation' set to '%s'" % olympe.enums.camera.ev_compensation(self.ev_compensation))
+					value=olympe.enums.camera.ev_compensation(ev_compensation)))  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.enums.camera.ev_compensation
+				self.node.get_logger().debug("Parameter 'ev_compensation' set to '%s'" % olympe.enums.camera.ev_compensation(ev_compensation))
 			if parameter.name == 'streaming_mode':
-				self.streaming_mode = parameter.value
+				streaming_mode = parameter.value
 				self.drone(camera.set_streaming_mode(  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.messages.camera.set_streaming_mode
 					cam_id=0,
-					value=olympe.enums.camera.streaming_mode(
-						self.streaming_mode)))  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.enums.camera.streaming_mode
-				self.node.get_logger().debug("Parameter 'streaming_mode' set to '%s'" % olympe.enums.camera.streaming_mode(self.streaming_mode))
+					value=olympe.enums.camera.streaming_mode(streaming_mode)))  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.enums.camera.streaming_mode
+				self.node.get_logger().debug("Parameter 'streaming_mode' set to '%s'" % olympe.enums.camera.streaming_mode(streaming_mode))
 			if parameter.name == 'image_style':
-				self.image_style = parameter.value
+				image_style = parameter.value
 				self.drone(camera.set_style(  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.messages.camera.set_style
 					cam_id=0,
-					style=olympe.enums.camera.style(self.image_style)))  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.enums.camera.style
-				self.node.get_logger().debug("Parameter 'image_style' set to '%s'" % olympe.enums.camera.style(self.image_style))
+					style=olympe.enums.camera.style(image_style)))  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.enums.camera.style
+				self.node.get_logger().debug("Parameter 'image_style' set to '%s'" % olympe.enums.camera.style(image_style))
 			if parameter.name == 'max_zoom_speed':
-				self.max_zoom_speed = parameter.value
+				max_zoom_speed = parameter.value
 				self.drone(camera.set_max_zoom_speed(  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.messages.camera.set_max_zoom_speed
 					cam_id=0,
-					max=self.max_zoom_speed))  # [0.01, 10] (tan(deg)/sec)
-				self.node.get_logger().debug("Parameter 'max_zoom_speed' set to %.1f (tan(deg)/sec)" % self.max_zoom_speed)
+					max=max_zoom_speed))  # [0.01, 10] (tan(deg)/sec)
+				self.node.get_logger().debug("Parameter 'max_zoom_speed' set to %.1f (tan(deg)/sec)" % max_zoom_speed)
 
 			# video related
 			if parameter.name == 'autorecord':
-				self.autorecord = parameter.value
+				autorecord = parameter.value
 				self.drone(camera.set_autorecord(  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.messages.camera.set_autorecord
 					cam_id=0,
-					state=olympe.enums.camera.state(self.autorecord)))  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.enums.camera.state
-				self.node.get_logger().debug("Parameter 'autorecord' set to '%s'" % olympe.enums.camera.state(self.autorecord))
+					state=olympe.enums.camera.state(autorecord)))  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.enums.camera.state
+				self.node.get_logger().debug("Parameter 'autorecord' set to '%s'" % olympe.enums.camera.state(autorecord))
+			if parameter.name == 'disparity_map' and self.model in {'ai'}:
+				disparity_map = parameter.value
+				self.drone.streaming.stop()
+				self.drone.streaming.start(media_name=("Disparity map" if disparity_map else "Front camera"))
+				self.node.get_logger().debug("Parameter 'disparity_image' set to %r" % disparity_map)
+			if parameter.name == 'thermal_image' and self.model in {'thermal', 'usa'}:
+				thermal_image = parameter.value
+				self.drone(thermal.set_rendering(  # https://developer.parrot.com/docs/olympe/arsdkng_thermal.html#olympe.messages.thermal.set_rendering
+					mode=('blended' if thermal_image else 'visible'),  # https://developer.parrot.com/docs/olympe/arsdkng_thermal.html#olympe.enums.thermal.rendering_mode
+					blending_rate=0.5)).wait()
+				self.node.get_logger().debug("Parameter 'thermal_image' set to '%s'" % ('blended' if thermal_image else 'visible'))
 
 			# media related
 			if parameter.name == 'download_folder':
@@ -638,13 +671,13 @@ class Anafi(Node):
 
 			# gimbal related
 			if parameter.name == 'max_gimbal_speed':
-				self.max_gimbal_speed = parameter.value
+				max_gimbal_speed = parameter.value
 				self.drone(gimbal.set_max_speed(  # https://developer.parrot.com/docs/olympe/arsdkng_gimbal.html#olympe.messages.gimbal.max_speed
 					gimbal_id=0,
 					yaw=0,
-					pitch=self.max_gimbal_speed,  # [1, 180] (deg/s)
-					roll=self.max_gimbal_speed))  # [1, 180] (deg/s)
-				self.node.get_logger().debug("Parameter 'max_gimbal_speed' set to %.1f deg" % self.max_gimbal_speed)
+					pitch=max_gimbal_speed,  # [1, 180] (deg/s)
+					roll=max_gimbal_speed))  # [1, 180] (deg/s)
+				self.node.get_logger().debug("Parameter 'max_gimbal_speed' set to %.1f deg" % max_gimbal_speed)
 
 		return SetParametersResult(successful=True)
 
