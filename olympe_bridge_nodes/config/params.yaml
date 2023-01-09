@@ -16,7 +16,7 @@ anafi:
       max_distance: 10.0  			# Max distance (in m) [10.0, 4000.0]
       max_gimbal_speed: 180.0  			# Max gimbal speed (in deg/s) [1.0, 180.0]
       max_horizontal_speed: 1.0  		# Max horizontal speed (in m/s) [0.1, 15.0]
-      max_pitch_roll_rotation_speed: 200.0  	# Max pitch/roll rotation speed (in deg/s) [40.0, 300.0]
+      max_pitch_roll_rotation_speed: 300.0  	# Max pitch/roll rotation speed (in deg/s) [40.0, 300.0]
       max_tilt: 10.0  				# Max pitch/roll (in deg) [1.0, 40.0]
       max_vertical_speed: 1.0  			# Max vertical speed (in m/s) [0.1, 4.0]
       max_yaw_rotation_speed: 180.0  		# Max yaw rotation speed (in deg/s) [3.0, 200.0]
@@ -27,4 +27,4 @@ anafi:
       rth_ending_behavior: 1  			# Ending behavior for RTH: 0 = land after RTH; 1 = hover after RTH
       rth_min_altitude: 20.0  			# RTH minimum altitude (in m) [20.0, 100.0]
       streaming_mode: 0  			# Streaming mode: 0 = minimize latency with average reliability (best for piloting); 1 = maximize the reliability with an average latency; 2 = maximize the reliability using a framerate decimation with an average latency
-      thermal_image: true 			# Enable thermal image streaming
+      thermal_rendering: 0 			# Thermal image rendering mode: 0 = visible; 1 = thermal; 2: blended

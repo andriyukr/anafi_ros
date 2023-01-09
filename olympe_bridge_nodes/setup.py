@@ -29,6 +29,9 @@ setup(
         	'test_anafi = olympe_bridge_nodes.test_anafi:main',
         	'collect_gimbal = olympe_bridge_nodes.collect_gimbal:main',
         	'collect_yaw = olympe_bridge_nodes.collect_yaw:main',
+        	'collect_vertical = olympe_bridge_nodes.collect_vertical:main',
+        	'collect_roll = olympe_bridge_nodes.collect_roll:main',
+        	'collect_pitch = olympe_bridge_nodes.collect_pitch:main',
         ],
     },
 )

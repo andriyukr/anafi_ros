@@ -58,6 +58,7 @@ from olympe.enums.piloting_style import style
 from olympe.enums.precise_home import mode as precise_home_mode
 from olympe.enums.mediastore import state as mediastore_state_enum
 from olympe.enums.obstacle_avoidance import mode as obstacle_avoidance_mode
+from olympe.enums.thermal import rendering_mode
 from olympe_bridge_interfaces.msg import PilotingCommand, MoveByCommand, MoveToCommand, CameraCommand, GimbalCommand
 from olympe_bridge_interfaces.srv import PilotedPOI, FlightPlan, FollowMe, Location, Photo, Recording, String as StringSRV
 from olympe_bridge_nodes.event_listener_anafi import EventListenerAnafi
@@ -196,7 +197,7 @@ class Anafi(Node):
 			self.node.get_logger().info("Connecting through SkyController")
 		else:  # connect to Anafi
 			self.node.get_logger().info("Connecting directly to Anafi")
-		self.drone = olympe.Drone(self.ip)
+		self.drone = olympe.Drone(os.environ.get("DRONE_IP", self.ip))
 		self.skyctrl = self.drone  # TODO: remove
 
 		# Create event listeners
@@ -238,7 +239,7 @@ class Anafi(Node):
 														floating_point_range=[FloatingPointRange(from_value=3.0,
 																								 to_value=200.0,
 																								 step=0.0)]))
-		self.node.declare_parameter("max_pitch_roll_rotation_speed", 200.0,  # 116.0
+		self.node.declare_parameter("max_pitch_roll_rotation_speed", 300.0,  # 116.0
 									ParameterDescriptor(description="Max pitch/roll rotation speed (in deg/s) [40.0, 300.0]",
 														floating_point_range=[FloatingPointRange(from_value=40.0,
 																								 to_value=300.0,
@@ -320,6 +321,17 @@ class Anafi(Node):
 		if self.model in {'thermal', 'usa'}:
 			self.node.declare_parameter("thermal_image", True,  # False
 										ParameterDescriptor(description="Enable stream thermal image"))
+			self.node.declare_parameter("thermal_rendering", 1,  # 0
+										ParameterDescriptor(
+											description="Thermal image rendering mode: 0 = visible; 1 = thermal; 2: blended",
+											integer_range=[IntegerRange(from_value=0,
+																		to_value=2,
+																		step=1)]))
+			self.node.declare_parameter("emissivity", 1.0,  # 0.9
+										ParameterDescriptor(description="Thermal emissivity [0.0, 1.0]",
+															floating_point_range=[FloatingPointRange(from_value=0.0,
+																									 to_value=1.0,
+																									 step=0.0)]))
 		if self.model in {'ai'}:
 			self.node.declare_parameter("disparity_map", True,  # False
 										ParameterDescriptor(description="Enable stream disparity map image"))
@@ -343,7 +355,7 @@ class Anafi(Node):
 			self.msg_camera_info.r = camera_info['rectification_matrix']['data']
 			self.msg_camera_info.p = camera_info['projection_matrix']['data']
 		else:
-			self.node.get_logger().error("Model is not supported")
+			self.node.get_logger().fatal("Model is not supported")
 
 		self.drone(camera.set_antiflicker_mode(mode="auto")) # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.messages.camera.set_antiflicker_mode
 		self.drone(camera.set_white_balance(cam_id=0, mode="automatic", temperature="t_8000")) # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.messages.camera.set_white_balance
@@ -394,12 +406,10 @@ class Anafi(Node):
 			self.node.get_logger().debug('GimbalRelativeBounds (deg): roll=[%f, %f], pitch=[%f, %f], yaw=[%f, %f]' % (-relative_attitude_bounds["max_roll"], -relative_attitude_bounds["min_roll"], -relative_attitude_bounds["max_pitch"], -relative_attitude_bounds["min_pitch"], -relative_attitude_bounds["max_yaw"], -relative_attitude_bounds["min_yaw"]))
 
 		if self.model in {'thermal', 'usa'}:
-			self.drone(thermal.set_emissivity(emissivity=1)).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_thermal.html#olympe.messages.thermal.set_emissivity
-			self.drone(thermal.set_mode(mode='blended')).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_thermal.html#olympe.messages.thermal.set_mode
 			self.drone(thermal.set_palette_settings(  # https://developer.parrot.com/docs/olympe/arsdkng_thermal.html#olympe.messages.thermal.set_palette_settings
 				mode='relative',  # https://developer.parrot.com/docs/olympe/arsdkng_thermal.html#olympe.enums.thermal.palette_mode
-				lowest_temp=303,  # in Kelvin (30C = 273K)
-				highest_temp=313,  # in Kelvin (40C = 313K)
+				lowest_temp=303,  # in Kelvin (303K = 30C)
+				highest_temp=313,  # in Kelvin (313K = 40C)
 				outside_colorization='extended',  # https://developer.parrot.com/docs/olympe/arsdkng_thermal.html#olympe.enums.thermal.colorization_mode
 				relative_range='unlocked',  # https://developer.parrot.com/docs/olympe/arsdkng_thermal.html#olympe.enums.thermal.relative_range_mode
 				spot_type='hot',  # https://developer.parrot.com/docs/olympe/arsdkng_thermal.html#olympe.enums.thermal.spot_type
@@ -426,7 +436,7 @@ class Anafi(Node):
 		self.drone.streaming.set_callbacks(
 			raw_cb=self.yuv_frame_cb,
 			flush_raw_cb=self.flush_cb)
-		self.drone.streaming.start(media_name="") # media_name="Disparity map"
+		self.drone.streaming.start(media_name="")
 		self.processing_thread.start()
 
 	def connect(self):
@@ -653,16 +663,24 @@ class Anafi(Node):
 					state=olympe.enums.camera.state(autorecord)))  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.enums.camera.state
 				self.node.get_logger().debug("Parameter 'autorecord' set to '%s'" % olympe.enums.camera.state(autorecord))
 			if parameter.name == 'disparity_map' and self.model in {'ai'}:
-				disparity_map = parameter.value
+				self.disparity_map = parameter.value
 				self.drone.streaming.stop()
-				self.drone.streaming.start(media_name=("Disparity map" if disparity_map else "Front camera"))
-				self.node.get_logger().debug("Parameter 'disparity_image' set to %r" % disparity_map)
-			if parameter.name == 'thermal_image' and self.model in {'thermal', 'usa'}:
-				thermal_image = parameter.value
+				self.drone.streaming.start(media_name=("Disparity map" if self.disparity_map else "Front camera"))
+				self.node.get_logger().debug("Parameter 'disparity_image' set to %r" % self.disparity_map)
+
+			# thermal related
+			if parameter.name == 'thermal_rendering' and self.model in {'thermal', 'usa'}:
+				self.thermal_rendering = parameter.value
 				self.drone(thermal.set_rendering(  # https://developer.parrot.com/docs/olympe/arsdkng_thermal.html#olympe.messages.thermal.set_rendering
-					mode=('blended' if thermal_image else 'visible'),  # https://developer.parrot.com/docs/olympe/arsdkng_thermal.html#olympe.enums.thermal.rendering_mode
-					blending_rate=0.5)).wait()
-				self.node.get_logger().debug("Parameter 'thermal_image' set to '%s'" % ('blended' if thermal_image else 'visible'))
+					mode=rendering_mode(int(self.thermal_rendering)),  # https://developer.parrot.com/docs/olympe/arsdkng_thermal.html#olympe.enums.thermal.rendering_mode
+					blending_rate=1.0)).wait()
+				self.change_thermal_rendering_thread = threading.Thread(target=self.change_thermal_rendering)  # to prevent rqt_reconfigure timeout warning
+				self.change_thermal_rendering_thread.start()
+				self.node.get_logger().debug("Parameter 'thermal_rendering' set to '%s'" % rendering_mode(int(self.thermal_rendering)))
+			if parameter.name == 'emissivity' and self.model in {'thermal', 'usa'}:
+				emissivity = parameter.value
+				self.drone(thermal.set_emissivity(emissivity=emissivity)).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_thermal.html#olympe.messages.thermal.set_emissivity
+				self.node.get_logger().debug("Parameter 'emissivity' set to %.1f" % emissivity)
 
 			# media related
 			if parameter.name == 'download_folder':
@@ -680,6 +698,16 @@ class Anafi(Node):
 				self.node.get_logger().debug("Parameter 'max_gimbal_speed' set to %.1f deg" % max_gimbal_speed)
 
 		return SetParametersResult(successful=True)
+
+	def change_thermal_rendering(self):
+		if self.thermal_rendering == 0:
+			self.drone.streaming.stop()
+			self.drone(thermal.set_mode(mode='disabled')).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_thermal.html#olympe.messages.thermal.set_mode
+			self.drone.streaming.start()
+		if self.thermal_rendering in {1, 2} and self.drone.get_state(olympe.messages.thermal.mode)['mode'].value == 0:
+			self.drone.streaming.stop()
+			self.drone(thermal.set_mode(mode='blended')).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_thermal.html#olympe.messages.thermal.set_mode
+			self.drone.streaming.start(media_name="ParrotThermalBlendedVideo")
 
 	def yuv_frame_cb(self, yuv_frame):  # this function will be called by Olympe for each decoded YUV frame
 		yuv_frame.ref()
@@ -844,6 +872,13 @@ class Anafi(Node):
 					olympe.VDEF_NV12: cv2.COLOR_YUV2BGR_NV12,
 				}[yuv_frame.format()]
 				cv2frame = cv2.cvtColor(yuv_frame.as_ndarray(), cv2_cvt_color_flag)  # use OpenCV to convert the yuv frame to RGB
+				if self.model in {'thermal', 'usa'} and self.thermal_rendering in {1, 2}:
+					cv2frame = cv2.applyColorMap(cv2frame, cv2.COLORMAP_PLASMA)  # to mimic FLIR ironbow colormap
+				# if self.model in {'ai'} and self.disparity_map:
+				# 	mask = cv2.inRange(cv2frame, np.array([0,0,0]), np.array([254,254,254]))
+				# 	mask = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)  # 3 channel mask
+				# 	#cv2frame = cv2.applyColorMap(cv2frame, cv2.COLORMAP_TURBO)
+				# 	cv2frame = cv2.bitwise_and(cv2frame, mask)
 
 				msg_image = self.bridge.cv2_to_imgmsg(cv2frame, "bgr8")
 				timestamp = info['ntp_raw_unskewed_timestamp']  # image capture timestamp (ms)

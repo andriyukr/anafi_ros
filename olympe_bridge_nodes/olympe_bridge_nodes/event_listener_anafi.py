@@ -250,10 +250,6 @@ class EventListenerAnafi(olympe.EventListener):
 	def onMissionItemExecuted(self, event, scheduler):
 		self.drone.node.get_logger().info('Mission item #%i executed' % event.args['idx'])
 
-	@olympe.listen_event(connection_state(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_drone_manager.html#olympe.messages.drone_manager.connection_state
-	def on_connection_state(self, event, scheduler):
-		self.drone.node.get_logger().info("connection_state: " + str(event.args))
-
 	@olympe.listen_event(follow_me_state(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_followme.html#olympe.messages.follow_me.state
 	def on_follow_me_state(self, event, scheduler):
 		follow_me = event.args
@@ -296,6 +292,10 @@ class EventListenerAnafi(olympe.EventListener):
 	def on_gimbal_calibration_state(self, event, scheduler):
 		calibration_state = event.args
 		self.drone.node.get_logger().debug('Gimbal calibration state: ' + calibration_state['state'].name)
+
+	@olympe.listen_event(connection_state(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_drone_manager.html#olympe.messages.drone_manager.connection_state
+	def on_connection_state(self, event, scheduler):
+		self.drone.node.get_logger().debug("connection_state: " + str(event.args))
 
 	"""
 	PUBLISHERS
