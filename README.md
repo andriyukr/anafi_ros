@@ -1,4 +1,4 @@
-# ROS2 Bridge for Parrot Drones
+# ROS2 Bridge for Parrot ANAFI Drones
 This ROS2 package contains interface to Olympe SDK. Currently, it supports only Parrot Anafi drones (4K, Thermal, USA, AI).
 
 ## Overview
