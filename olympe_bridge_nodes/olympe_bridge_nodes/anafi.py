@@ -94,10 +94,10 @@ class Anafi(Node):
 		self.node.get_logger().info("Anafi is running...")
 
 		# Subscribers
+		self.node.create_subscription(CameraCommand, 'camera/command', self.zoom_callback, qos_profile_system_default)
 		self.node.create_subscription(PilotingCommand, 'drone/command', self.rpyt_callback, qos_profile_system_default)
 		self.node.create_subscription(MoveToCommand, 'drone/moveto', self.moveTo_callback, qos_profile_system_default)
 		self.node.create_subscription(MoveByCommand, 'drone/moveby', self.moveBy_callback, qos_profile_system_default)
-		self.node.create_subscription(CameraCommand, 'camera/command', self.zoom_callback, qos_profile_system_default)
 		self.node.create_subscription(GimbalCommand, 'gimbal/command', self.gimbal_callback, qos_profile_system_default)
 
 		# Publishers
@@ -115,8 +115,6 @@ class Anafi(Node):
 		self.pub_battery_percentage = self.node.create_publisher(UInt8, 'battery/percentage', qos_profile_system_default)
 		self.pub_state = self.node.create_publisher(String, 'drone/state', qos_profile_system_default)
 		self.pub_rpy = self.node.create_publisher(Vector3Stamped, 'drone/rpy', qos_profile_sensor_data)
-		self.pub_camera_attitude = self.node.create_publisher(QuaternionStamped, 'camera/attitude', qos_profile_sensor_data)
-		self.pub_camera_base_attitude = self.node.create_publisher(QuaternionStamped, 'camera/base/attitude', qos_profile_sensor_data)
 		self.pub_exposure_time = self.node.create_publisher(Float32, 'camera/exposure_time', qos_profile_system_default)
 		self.pub_iso_gain = self.node.create_publisher(UInt16, 'camera/iso_gain', qos_profile_system_default)
 		self.pub_awb_r_gain = self.node.create_publisher(Float32, 'camera/awb_r_gain', qos_profile_system_default)
@@ -234,13 +232,13 @@ class Anafi(Node):
 														floating_point_range=[FloatingPointRange(from_value=0.1,
 																								 to_value=15.0,
 																								 step=0.0)]))
-		self.node.declare_parameter("max_yaw_rotation_speed", 180.0,  # 40.0
-									ParameterDescriptor(description="Max yaw rotation speed (in deg/s) [3.0, 200.0]",
+		self.node.declare_parameter("max_yaw_rate", 180.0,  # 40.0
+									ParameterDescriptor(description="Max yaw rate (in deg/s) [3.0, 200.0]",
 														floating_point_range=[FloatingPointRange(from_value=3.0,
 																								 to_value=200.0,
 																								 step=0.0)]))
-		self.node.declare_parameter("max_pitch_roll_rotation_speed", 300.0,  # 116.0
-									ParameterDescriptor(description="Max pitch/roll rotation speed (in deg/s) [40.0, 300.0]",
+		self.node.declare_parameter("max_pitch_roll_rate", 300.0,  # 116.0
+									ParameterDescriptor(description="Max pitch and roll rate (in deg/s) [40.0, 300.0]",
 														floating_point_range=[FloatingPointRange(from_value=40.0,
 																								 to_value=300.0,
 																								 step=0.0)]))
@@ -319,9 +317,7 @@ class Anafi(Node):
 																								 to_value=180.0,
 																								 step=0.0)]))
 		if self.model in {'thermal', 'usa'}:
-			self.node.declare_parameter("thermal_image", True,  # False
-										ParameterDescriptor(description="Enable stream thermal image"))
-			self.node.declare_parameter("thermal_rendering", 1,  # 0
+			self.node.declare_parameter("thermal_rendering", 0,  # 0
 										ParameterDescriptor(
 											description="Thermal image rendering mode: 0 = visible; 1 = thermal; 2: blended",
 											integer_range=[IntegerRange(from_value=0,
@@ -333,7 +329,7 @@ class Anafi(Node):
 																									 to_value=1.0,
 																									 step=0.0)]))
 		if self.model in {'ai'}:
-			self.node.declare_parameter("disparity_map", True,  # False
+			self.node.declare_parameter("disparity_map", False,  # False
 										ParameterDescriptor(description="Enable stream disparity map image"))
 			self.node.declare_parameter("obstacle_avoidance", True,  # True
 										ParameterDescriptor(description="Enable obstacle avoidance"))
@@ -382,8 +378,8 @@ class Anafi(Node):
 		self.node.get_logger().debug('MaxTilt = %f [%f, %f]' % (max_tilt["current"], max_tilt["min"], max_tilt["max"]))
 		max_vertical_speed = self.drone.get_state(olympe.messages.ardrone3.SpeedSettingsState.MaxVerticalSpeedChanged)  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.SpeedSettingsState.MaxVerticalSpeedChanged
 		self.node.get_logger().debug('MaxVerticalSpeed = %f [%f, %f]' % (max_vertical_speed["current"], max_vertical_speed["min"], max_vertical_speed["max"]))
-		max_yaw_rotation_speed = self.drone.get_state(olympe.messages.ardrone3.SpeedSettingsState.MaxRotationSpeedChanged)  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.SpeedSettingsState.MaxRotationSpeedChanged
-		self.node.get_logger().debug('MaxYawRotationSpeed = %f [%f, %f]' % (max_yaw_rotation_speed["current"], max_yaw_rotation_speed["min"], max_yaw_rotation_speed["max"]))
+		max_yaw_rate = self.drone.get_state(olympe.messages.ardrone3.SpeedSettingsState.MaxRotationSpeedChanged)  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.SpeedSettingsState.MaxRotationSpeedChanged
+		self.node.get_logger().debug('MaxYawRotationSpeed = %f [%f, %f]' % (max_yaw_rate["current"], max_yaw_rate["min"], max_yaw_rate["max"]))
 		max_pitch_roll_rotation_speed = self.drone.get_state(olympe.messages.ardrone3.SpeedSettingsState.MaxPitchRollRotationSpeedChanged)  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.SpeedSettingsState.MaxPitchRollRotationSpeedChanged
 		self.node.get_logger().debug('MaxPitchRollRotationSpeed = %f [%f, %f]' % (max_pitch_roll_rotation_speed["current"], max_pitch_roll_rotation_speed["min"], max_pitch_roll_rotation_speed["max"]))
 		max_distance = self.drone.get_state(olympe.messages.ardrone3.PilotingSettingsState.MaxDistanceChanged)  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.PilotingSettingsState.MaxDistanceChanged
@@ -420,7 +416,7 @@ class Anafi(Node):
 		if self.skycontroller_enabled:
 			skyctrl_version = self.drone.get_state(olympe.messages.skyctrl.SettingsState.ProductVersionChanged)  # https://developer.parrot.com/docs/olympe/arsdkng_skyctrl_settings.html#olympe.messages.skyctrl.SettingsState.ProductVersionChanged
 			self.node.get_logger().debug('Controller version: software=%s, hardware=%s' % (skyctrl_version['software'], skyctrl_version['hardware']))
-			self.node.get_logger().debug('Validity from drone: %r ' % (self.drone.get_state(validity_from_drone)["is_valid"] == 1))  # https://developer.parrot.com/docs/olympe/arsdkng_controller_info.html#olympe.messages.controller_info.validity_from_drone
+			#self.node.get_logger().debug('Validity from drone: %r ' % (self.drone.get_state(validity_from_drone)["is_valid"] == 1))  # https://developer.parrot.com/docs/olympe/arsdkng_controller_info.html#olympe.messages.controller_info.validity_from_drone
 		
 		mediastore_state = self.drone.get_state(mediastore_state_message)['state']  # https://developer.parrot.com/docs/olympe/arsdkng_mediastore.html#olympe.messages.mediastore.state
 		if mediastore_state == mediastore_state_enum.not_available:
@@ -436,7 +432,7 @@ class Anafi(Node):
 		self.drone.streaming.set_callbacks(
 			raw_cb=self.yuv_frame_cb,
 			flush_raw_cb=self.flush_cb)
-		self.drone.streaming.start(media_name="")
+		self.drone.streaming.start(media_name="Front camera")
 		self.processing_thread.start()
 
 	def connect(self):
@@ -555,14 +551,14 @@ class Anafi(Node):
 			if parameter.name == 'max_horizontal_speed':
 				self.max_horizontal_speed = parameter.value
 				self.node.get_logger().debug("Parameter 'max_horizontal_speed' set to %.1f (m/s)" % self.max_horizontal_speed)
-			if parameter.name == 'max_yaw_rotation_speed':
-				self.max_yaw_rotation_speed = parameter.value
-				self.drone(MaxRotationSpeed(self.max_yaw_rotation_speed))  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.SpeedSettings.MaxRotationSpeed
-				self.node.get_logger().debug("Parameter 'max_yaw_rotation_speed' set to %.1f (deg/s)" % self.max_yaw_rotation_speed)
-			if parameter.name == 'max_pitch_roll_rotation_speed':
-				max_pitch_roll_rotation_speed = parameter.value
-				self.drone(MaxPitchRollRotationSpeed(max_pitch_roll_rotation_speed))  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.SpeedSettings.MaxPitchRollRotationSpeed
-				self.node.get_logger().debug("Parameter 'max_pitch_roll_rotation_speed' set to %.1f (deg/s)" % max_pitch_roll_rotation_speed)
+			if parameter.name == 'max_yaw_rate':
+				self.max_yaw_rate = parameter.value
+				self.drone(MaxRotationSpeed(self.max_yaw_rate))  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.SpeedSettings.MaxRotationSpeed
+				self.node.get_logger().debug("Parameter 'max_yaw_rate' set to %.1f (deg/s)" % self.max_yaw_rate)
+			if parameter.name == 'max_pitch_roll_rate':
+				max_pitch_roll_rate = parameter.value
+				self.drone(MaxPitchRollRotationSpeed(max_pitch_roll_rate))  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.SpeedSettings.MaxPitchRollRotationSpeed
+				self.node.get_logger().debug("Parameter 'max_pitch_roll_rate' set to %.1f (deg/s)" % max_pitch_roll_rate)
 			if parameter.name == 'max_distance':
 				max_distance = parameter.value
 				self.drone(MaxDistance(max_distance))  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.PilotingSettings.MaxDistance
@@ -700,10 +696,10 @@ class Anafi(Node):
 		return SetParametersResult(successful=True)
 
 	def change_thermal_rendering(self):
-		if self.thermal_rendering == 0:
+		if self.thermal_rendering == 0 and self.drone.get_state(olympe.messages.thermal.mode)['mode'].value != 0:
 			self.drone.streaming.stop()
 			self.drone(thermal.set_mode(mode='disabled')).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_thermal.html#olympe.messages.thermal.set_mode
-			self.drone.streaming.start()
+			self.drone.streaming.start(media_name="DefaultVideo")
 		if self.thermal_rendering in {1, 2} and self.drone.get_state(olympe.messages.thermal.mode)['mode'].value == 0:
 			self.drone.streaming.stop()
 			self.drone(thermal.set_mode(mode='blended')).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_thermal.html#olympe.messages.thermal.set_mode
@@ -786,8 +782,8 @@ class Anafi(Node):
 				speed = vmeta[1]['drone']['speed']  # optical flow speed (m/s)
 				self.msg_speed.header = self.header
 				self.msg_speed.header.frame_id = '/body'
-				self.msg_speed.vector.x = math.cos(yaw)*speed['north'] + math.sin(yaw)*speed['east']
-				self.msg_speed.vector.y = math.sin(yaw)*speed['north'] - math.cos(yaw)*speed['east']
+				self.msg_speed.vector.x =  math.cos(yaw)*speed['north'] - math.sin(yaw)*speed['east']
+				self.msg_speed.vector.y = -math.sin(yaw)*speed['north'] - math.cos(yaw)*speed['east']
 				self.msg_speed.vector.z = -speed['down']
 				self.pub_speed.publish(self.msg_speed)
 
@@ -796,24 +792,6 @@ class Anafi(Node):
 				self.pub_battery_percentage.publish(self.msg_battery_percentage)
 				if battery_percentage%10 == 0:
 					self.node.get_logger().info("Battery level: %s%%" % str(battery_percentage), throttle_duration_sec=100)
-
-				camera_quat = vmeta[1]['camera']['quat']
-				self.msg_attitude.header.frame_id = '/body'
-				self.msg_attitude.quaternion = Quaternion(
-					x=camera_quat['x'],
-					y=-camera_quat['y'],
-					z=-camera_quat['z'],
-					w=camera_quat['w'])
-				self.pub_camera_attitude.publish(self.msg_attitude)
-
-				if 'base_quat' in vmeta[1]['drone']:
-					camera_base_quat = vmeta[1]['camera']['base_quat']
-					self.msg_attitude.header.frame_id = '/body'
-					self.msg_attitude.quaternion.x = camera_base_quat['x']
-					self.msg_attitude.quaternion.y = -camera_base_quat['y']
-					self.msg_attitude.quaternion.z = -camera_base_quat['z']
-					self.msg_attitude.quaternion.w = camera_base_quat['w']
-					self.pub_camera_base_attitude.publish(self.msg_attitude)
 
 				self.msg_exposure_time.data = vmeta[1]['camera']['exposure_time']
 				self.pub_exposure_time.publish(self.msg_exposure_time)
@@ -1244,7 +1222,7 @@ class Anafi(Node):
 			flag=1,
 			roll=int(bound_percentage(msg.roll/self.max_tilt*100)),  # roll [-100, 100] (% of max tilt)
 			pitch=int(bound_percentage(msg.pitch/self.max_tilt*100)),  # pitch [-100, 100] (% of max tilt)
-			yaw=int(bound_percentage(-msg.yaw/self.max_yaw_rotation_speed*100)),  # yaw rate [-100, 100] (% of max yaw rate)
+			yaw=int(bound_percentage(-msg.yaw/self.max_yaw_rate*100)),  # yaw rate [-100, 100] (% of max yaw rate)
 			gaz=int(bound_percentage(msg.gaz/self.max_vertical_speed*100)),  # vertical speed [-100, 100] (% of max vertical speed)
 			timestampAndSeqNum=0))
 
@@ -1256,7 +1234,7 @@ class Anafi(Node):
 			d_psi=msg.dyaw, # rotation of heading (rad)
 			max_horizontal_speed=self.max_horizontal_speed,
 			max_vertical_speed=self.max_vertical_speed,
-			max_yaw_rotation_speed=self.max_yaw_rotation_speed
+			max_yaw_rate=self.max_yaw_rate
 		)).wait()
 	
 	def moveTo_callback(self, msg):		
@@ -1268,7 +1246,7 @@ class Anafi(Node):
 			heading=msg.heading, # heading relative to the North (degrees)
 			max_horizontal_speed=self.max_horizontal_speed,
 			max_vertical_speed=self.max_vertical_speed,
-			max_yaw_rotation_speed=self.max_yaw_rotation_speed
+			max_yaw_rate=self.max_yaw_rate
 		)).wait()
 
 	def zoom_callback(self, msg):

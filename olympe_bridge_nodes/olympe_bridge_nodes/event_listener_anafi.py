@@ -93,8 +93,8 @@ class EventListenerAnafi(olympe.EventListener):
 		self.pub_gps_location = self.drone.node.create_publisher(NavSatFix, 'drone/gps/location', qos_profile_sensor_data)
 		self.pub_battery_voltage = self.drone.node.create_publisher(Float32, 'battery/voltage', qos_profile_system_default)
 		self.pub_target_trajectory = self.drone.node.create_publisher(TargetTrajectory, 'target/trajectory', qos_profile_system_default)
-		self.pub_gimbal_relative = self.drone.node.create_publisher(Vector3Stamped, 'gimbal/relative', qos_profile_sensor_data)
-		self.pub_gimbal_absolute = self.drone.node.create_publisher(Vector3Stamped, 'gimbal/absolute', qos_profile_sensor_data)
+		self.pub_gimbal_relative = self.drone.node.create_publisher(Vector3Stamped, 'gimbal/attitude/relative', qos_profile_sensor_data)
+		self.pub_gimbal_absolute = self.drone.node.create_publisher(Vector3Stamped, 'gimbal/attitude/absolute', qos_profile_sensor_data)
 		self.pub_media_available = self.drone.node.create_publisher(UInt64, 'media/available', qos_profile_system_default)
 		self.pub_home_location = self.drone.node.create_publisher(PointStamped, 'home/location', qos_profile_system_default)  # TODO: change to Location message
 
