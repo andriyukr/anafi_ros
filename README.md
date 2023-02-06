@@ -60,8 +60,8 @@ This package has been tested with **python3** in **ROS Melodic**/**Ubuntu 18.04*
 
 Clone the latest version from this repository into your ROS workspace:
 
-	cd ~/dev_ws/src
-	git clone https://github.com/andriyukr/olympe_bridge.git
+	cd ~/catkin_ws/src
+	git clone -b ros1 https://github.com/andriyukr/olympe_bridge.git
 	sudo chmod -R 777 olympe_bridge/
 
 ## Run
