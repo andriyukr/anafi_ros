@@ -15,7 +15,7 @@ This is research code, expect that it changes often and any fitness for a partic
 
 For more details, please refer to: 
 
-* A. Sarabakha, "anafi_ros: from Off-the-Shelf Drones to Research Platforms," *arXiv*, 2023. ([pdf](Parrot_Anafi.pdf))
+* A. Sarabakha, "`anafi_ros`: from Off-the-Shelf Drones to Research Platforms," *arXiv*, 2023. ([pdf](Parrot_Anafi.pdf))
 
 If you use this work in an academic context, please cite the paper:
 ```bibtex
