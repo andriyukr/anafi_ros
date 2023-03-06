@@ -7,9 +7,27 @@ This ROS2 package contains interface to Olympe SDK. Currently, it is compatible 
 **Affiliation:** [Nanyang Technological University (NTU)](https://www.ntu.edu.sg), Singapore<br />
 **Maintainer:** Andriy Sarabakha, andriy.sarabakha@ntu.edu.sg
 
-**Keywords:** Parrot, UAV, controller
+**Keywords:** Parrot Anafi, ROS, controller
 
 This is research code, expect that it changes often and any fitness for a particular purpose is disclaimed.
+
+### Publications
+
+For more details, please refer to: 
+
+* A. Sarabakha, "anafi_ros: from Off-the-Shelf Drones to Research Platforms," *arXiv*, 2023. ([pdf](Parrot_Anafi.pdf))
+
+If you use this work in an academic context, please cite the paper:
+```bibtex
+@misc{https://doi.org/10.48550/arxiv.2303.01813,
+  author = {Sarabakha, Andriy},  
+  title = {anafi_ros: from Off-the-Shelf Drones to Research Platforms},
+  publisher = {arXiv},
+  year = {2023},
+  doi = {10.48550/ARXIV.2303.01813},
+  url = {https://arxiv.org/abs/2303.01813}
+}
+```
 
 ## Installation
 
