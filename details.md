@@ -62,10 +62,10 @@
 | drone/calibrate 			| std_srvs/srv/Trigger 			| start drone's magnetometer calibration process 						|
 | drone/emergency 			| std_srvs/srv/Trigger 			| cut out the motors 										|
 | drone/halt 				| std_srvs/srv/Trigger 			| halt and start hovering 									|
-| drone/land 				| std_srvs/srv/Trigger 			| take-off the drone 										|
+| drone/land 				| std_srvs/srv/Trigger 			| land the drone 										|
 | drone/reboot 				| std_srvs/srv/Trigger 			| reboot the drone 										|
 | drone/rth 				| std_srvs/srv/Trigger 			| return home 											|
-| drone/takeoff 			| std_srvs/srv/Trigger 			| land the drone 										|
+| drone/takeoff 			| std_srvs/srv/Trigger 			| take-off the drone 										|
 | flightplan/pause 			| std_srvs/srv/Trigger 			| pause the flight plan 									|
 | flightplan/start 			| anafi_ros_interfaces/srv/FlightPlan 	| start the flight plan based on the Mavlink file existing on the drone 			|
 | flightplan/stop 			| std_srvs/srv/Trigger 			| stop the flight plan 										|
