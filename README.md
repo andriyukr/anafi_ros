@@ -19,7 +19,7 @@ For more details, please refer to:
 
 If you use this work in an academic context, please cite the paper:
 ```bibtex
-@misc{https://doi.org/10.48550/arxiv.2303.01813,
+@misc{AnafiROS,
   author = {Sarabakha, Andriy},  
   title = {anafi_ros: from Off-the-Shelf Drones to Research Platforms},
   publisher = {arXiv},
