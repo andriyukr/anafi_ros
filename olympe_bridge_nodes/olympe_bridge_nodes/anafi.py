@@ -972,8 +972,8 @@ class Anafi(Node):
 			
 	def flightplan_upload_callback(self, request, response): # https://forum.developer.parrot.com/t/olympe-mavlink-working-example/14041/2
 		self.node.get_logger().info("FlightPlan uploading from " + request.file)
-		self.node.get_logger().info("REST API: PUT http://" + self.ip + ":180/api/v" + self.rest_api_version + "/upload/flightplan,  data=" + request.file)
-		response = requests.put(url="http://" + self.ip + ":180/api/v" + self.rest_api_version + "/upload/flightplan", data=open(request.file, "rb"))
+		self.node.get_logger().info("REST API: PUT http://" + self.ip + ":180/api/v" + str(self.rest_api_version) + "/upload/flightplan,  data=" + request.file)
+		response = requests.put(url="http://" + self.ip + ":180/api/v" + str(self.rest_api_version) + "/upload/flightplan", data=open(request.file, "rb"))
 		response.raise_for_status()
 		self.uid = response.json()
 		self.node.get_logger().info("FlightPlan uploaded with UID " + self.uid)
@@ -982,8 +982,8 @@ class Anafi(Node):
 	def flightplan_start_callback(self, request, response): # https://forum.developer.parrot.com/t/olympe-mavlink-working-example/14041/2
 		uid = (request.uid if request.uid != "" else self.uid)
 		self.node.get_logger().warning("FlightPlan starting with UID " + uid)
-		self.node.get_logger().debug("REST API: GET http://" + self.ip + ":180/api/v" + self.rest_api_version + "/upload/flightplan/" + uid)
-		response = requests.get("http://" + self.ip + ":180/api/v" + self.rest_api_version + "/upload/flightplan/" + uid)
+		self.node.get_logger().debug("REST API: GET http://" + self.ip + ":180/api/v" + str(self.rest_api_version) + "/upload/flightplan/" + uid)
+		response = requests.get("http://" + self.ip + ":180/api/v" + str(self.rest_api_version) + "/upload/flightplan/" + uid)
 		response.raise_for_status()
 		if response.status_code == requests.codes.ok:
 			self.drone(
