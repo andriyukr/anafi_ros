@@ -26,6 +26,19 @@ This package has been tested with **python3** in **ROS Melodic**/**Ubuntu 18.04*
       python -c 'import olympe; print("Installation OK")'
       
   **Troubleshooting**
+  
+  - *Issue*
+
+        ERROR: Could not find a version that satisfies the requirement parrot-olympe (from versions: none)
+        ERROR: No matching distribution found for parrot-olympe
+   
+    *Solution*
+  
+    Install the latest version of `pip`:
+
+        sudo apt-get install python3-pip python-dev
+        echo 'export PATH="~/.local/bin:$PATH"' >> ~/.bashrc
+        source ~/.bashrc
 
   - *Issue*
 
