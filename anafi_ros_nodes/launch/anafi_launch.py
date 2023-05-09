@@ -23,7 +23,7 @@ def generate_launch_description():
 	)
 	
 	anafi_node = Node(
-		package='olympe_bridge_nodes',
+		package='anafi_ros_nodes',
 		namespace=LaunchConfiguration('namespace'),
 		executable='anafi',
 		name='anafi',

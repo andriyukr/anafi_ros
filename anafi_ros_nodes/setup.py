@@ -4,7 +4,7 @@ import os
 from glob import glob
 from setuptools import setup
 
-package_name = 'olympe_bridge_nodes'
+package_name = 'anafi_ros_nodes'
 
 setup(
     name=package_name,
@@ -25,13 +25,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-        	'anafi = olympe_bridge_nodes.anafi:main',
-        	'test_anafi = olympe_bridge_nodes.test_anafi:main',
-        	'collect_gimbal = olympe_bridge_nodes.collect_gimbal:main',
-        	'collect_yaw = olympe_bridge_nodes.collect_yaw:main',
-        	'collect_vertical = olympe_bridge_nodes.collect_vertical:main',
-        	'collect_roll = olympe_bridge_nodes.collect_roll:main',
-        	'collect_pitch = olympe_bridge_nodes.collect_pitch:main',
+        	'anafi = anafi_ros_nodes.anafi:main',
+        	'test_anafi = anafi_ros_nodes.test_anafi:main',
         ],
     },
 )

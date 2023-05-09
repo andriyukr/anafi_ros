@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.5)
 
-project(olympe_bridge_interfaces)
+project(anafi_ros_interfaces)
 
 if(NOT CMAKE_CXX_STANDARD)
 	set(CMAKE_CXX_STANDARD 14)

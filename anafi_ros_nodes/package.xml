@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package format="3">
-	<name>olympe_bridge_nodes</name>
+	<name>anafi_ros_nodes</name>
 	<version>0.3.0</version>
-	<description>The olympe_bridge package</description>
+	<description>The anafi_ros_nodes package</description>
 
 	<maintainer email="andriy.sarabakha@ntu.edu.sg">Andriy Sarabakha</maintainer>
 
@@ -16,7 +16,7 @@
 	<depend>std_msgs</depend>
 	<depend>geometry_msgs</depend>
 	<depend>sensor_msgs</depend>
-	<depend>olympe_bridge_interfaces</depend>
+	<depend>anafi_ros_interfaces</depend>
 	
 	<exec_depend>ros2launch</exec_depend>
     
