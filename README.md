@@ -115,7 +115,7 @@ To build from source, clone the latest version from this repository into your RO
 
 To connect to the drone, run in the terminal:
 
-    ros2 launch olympe_bridge_nodes anafi_launch.py
+    ros2 launch anafi_ros_nodes anafi_launch.py
     
 ## Package details
 
