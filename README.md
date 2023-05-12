@@ -38,9 +38,9 @@ This package has been tested with **python3** in **ROS2 Humble**/**Ubuntu 22.04*
 
 ### Dependencies
 
-- [Parrot Olympe](https://developer.parrot.com/docs/olympe/installation.html) - SDK for Parrot drones:
+- [Parrot Olympe](https://developer.parrot.com/docs/olympe/installation.html) **7.5.0** - SDK for Parrot drones:
 
-      pip install parrot-olympe
+      pip install parrot-olympe==7.5.0
       
   Check installation:
   
@@ -51,11 +51,11 @@ This package has been tested with **python3** in **ROS2 Humble**/**Ubuntu 22.04*
     <details> 
         <summary>ERROR: Could not find a version that satisfies the requirement parrot-olympe (from versions: none)</summary>
 	
-    	Install the latest version of pip:
+    	Install the latest version of `pip`:
 
         	sudo apt-get install python3-pip python-dev
         	echo 'export PATH="~/.local/bin:$PATH"' >> ~/.bashrc
-		source ~/.bashrc
+        	source ~/.bashrc
     </details>
     
     <details> 
