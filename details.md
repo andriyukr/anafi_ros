@@ -197,7 +197,7 @@
 - *uint8* **mode** photo mode {0: single shot, 1: bracketing - burst of frames with a different exposure, 2: burst of frames, 3: time-lapse - frames at a regular time interval, 4: GPS-lapse - frames at a regular GPS position interval}
 - *uint8* **photo_format** photo format {0: full resolution, not dewarped, 1: rectilinear projection, dewarped}
 - *uint8* **file_format** file format {0: jpeg, 1: dng, 2: jpeg and dng}
-  - *string* **media_id** media id
+- *string* **media_id** media id
 #### Recording
 - *uint8* **mode** video recording mode {0: standard, 1: hyperlapse, 2: slow motion, 3: high-framerate}
-  - *string* **media_id** media id
+- *string* **media_id** media id
