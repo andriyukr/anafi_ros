@@ -59,7 +59,7 @@ This package has been tested with **python3** in **ROS2 Humble**/**Ubuntu 22.04*
     </details>
     
     <details> 
-        <summary>/usr/bin/env: ‘python’: No such file or directory</summary>
+        <summary>Command 'python' not found</summary>
   
     	Set `python3` as default `python` version:
 
@@ -99,7 +99,7 @@ To build from source, clone the latest version from this repository into your RO
     git clone -b ros2 https://github.com/andriyukr/anafi_ros.git
     sudo chmod -R 777 anafi_ros/
     cd ..
-    colcon build
+    colcon build --symlink-install
   
 **Troubleshooting**
   
