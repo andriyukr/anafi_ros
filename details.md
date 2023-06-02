@@ -37,7 +37,7 @@
 | drone/speed 			| geometry_msgs/Vector3Stamped 			| 30 Hz 	| 											| Drone's speed in body frame 						| m/s 	| 
 | drone/state 			| std_msgs/String 				| 30 Hz 	| {CONNECTING, LANDED, TAKINGOFF, HOVERING, FLYING, LANDING, EMERGENCY, DISCONNECTED} 	| Drone's state 						|	|
 | drone/steady 			| std_msgs/Bool 				| 		| {true: the drone is steady, false: the drone is moving} 				| 			|
-| gimbal/attitude/absolute 	| geometry_msgs/QuaternionStamped 		| 5 Hz 		| 											| Gimbal's attitude in north-west-up frame 				|	|
+| gimbal/attitude/absolute 	| geometry_msgs/Vector3Stamped 		| 5 Hz 		| 											| Gimbal's attitude in north-west-up frame 				|	|
 | home/location 		| geometry_msgs/PointStamped 			| 		| 											| Home location 					|	|
 | link/goodput 			| std_msgs/UInt16 				| 30 Hz 	| 											| Connection throughput (available only for ANAFI 4K, Thermal and USA) 	| b/s 	|
 | link/quality 			| std_msgs/UInt8 				| 30 Hz 	| [0: bad, 5: good] 									| Link quality 					|
