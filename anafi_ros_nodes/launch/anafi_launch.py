@@ -18,7 +18,7 @@ def generate_launch_description():
 		description="IP address of Anafi to connect")
 
 	config = os.path.join(
-		get_package_share_directory('olympe_bridge_nodes'),
+		get_package_share_directory('anafi_ros_nodes'),
 		'params.yaml'
 	)
 	
