@@ -406,7 +406,7 @@ class EventListenerAnafi(olympe.EventListener):
 		home = event.args
 		self.drone.node.get_logger().info('home: ' + str(home))
 		if home['latitude'] != 500 and home['longitude'] != 500 and home['altitude'] != 500:
-			self.msg_home_location.header.stamp = self.node.get_clock().now().to_msg()
+			self.msg_home_location.header.stamp = self.drone.node.get_clock().now().to_msg()
 			self.msg_home_location.header.frame_id = '/world'
 			self.msg_home_location.point.x = home['latitude']
 			self.msg_home_location.point.y = home['longitude']

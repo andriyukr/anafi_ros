@@ -191,6 +191,23 @@ class Anafi(Node):
 		self.rest_api_version = self.node.declare_parameter('rest_api_version', 0, ParameterDescriptor(read_only=True)).value
 		self.skycontroller_enabled = self.node.declare_parameter('skycontroller_enabled', False, ParameterDescriptor(read_only=True)).value
 
+		if self.ip == '192.168.42.1':  # direct WiFi connection to the drone
+			self.skycontroller_enabled = False
+			self.simulation_environment = False
+		else:
+			if self.ip.startswith('192.168.'):  # connection through SkyController
+				self.skycontroller_enabled = True
+				self.simulation_environment = False
+			else:
+				if self.ip == '10.202.0.1':  # connection to the simulated drone
+					if self.model in {'4k', 'ai'}:
+						self.skycontroller_enabled = False
+						self.simulation_environment = True
+					else:
+						self.node.get_logger().fatal("This model is not supported in simulation")
+				else:  # not valid IP address
+					self.node.get_logger().fatal("IP address is not valid")
+
 		if self.skycontroller_enabled:  # connect to SkyController
 			self.node.get_logger().info("Connecting through SkyController")
 			self.drone = olympe.SkyController(self.ip)
@@ -372,7 +389,8 @@ class Anafi(Node):
 		flights_status = self.drone.get_state(olympe.messages.ardrone3.SettingsState.MotorFlightsStatusChanged)  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_settings_state.html#olympe.messages.ardrone3.SettingsState.MotorErrorStateChanged
 		self.node.get_logger().info('Number of flights: %i' % (flights_status['nbFlights']))
 		self.node.get_logger().info('Total flight duration: %s' % (str(datetime.timedelta(seconds=flights_status['totalFlightDuration']))))
-		self.node.get_logger().debug('Battery serial: %s' % (self.drone.get_state(olympe.messages.battery.serial)['serial']))  # https://developer.parrot.com/docs/olympe/arsdkng_battery.html#olympe.messages.battery.serial
+		if not self.simulation_environment:
+			self.node.get_logger().debug('Battery serial: %s' % (self.drone.get_state(olympe.messages.battery.serial)['serial']))  # https://developer.parrot.com/docs/olympe/arsdkng_battery.html#olympe.messages.battery.serial
 		self.node.get_logger().info('Battery cycle count: %i' % (self.drone.get_state(olympe.messages.battery.cycle_count)['count']))  # https://developer.parrot.com/docs/olympe/arsdkng_battery.html#olympe.messages.battery.cycle_count
 		self.node.get_logger().info('Battery health: %i%%' % (self.drone.get_state(olympe.messages.battery.health)['state_of_health']))  # https://developer.parrot.com/docs/olympe/arsdkng_battery.html#olympe.messages.battery.health
 		max_tilt = self.drone.get_state(olympe.messages.ardrone3.PilotingSettingsState.MaxTiltChanged)  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.PilotingSettingsState.MaxTiltChanged
@@ -526,9 +544,10 @@ class Anafi(Node):
 
 	def fast_callback(self):  # fast states triggered on changes
 		# FIXME: check on steady state
-		motion_state = self.drone.get_state(olympe.messages.ardrone3.PilotingState.MotionState)['state']  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.PilotingState.MotionState  # FIXME: check why it fails
-		self.msg_steady.data = (self.state == "LANDED" and motion_state == olympe.enums.ardrone3.PilotingState.MotionState_State.steady)
-		self.pub_steady.publish(self.msg_steady)
+		#motion_state = self.drone.get_state(olympe.messages.ardrone3.PilotingState.MotionState)['state']  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.PilotingState.MotionState  # FIXME: check why it fails
+		#self.msg_steady.data = (self.state == "LANDED" and motion_state == olympe.enums.ardrone3.PilotingState.MotionState_State.steady)
+		#self.pub_steady.publish(self.msg_steady)
+		pass
 
 	def slow_callback(self):  # slow states triggered on changes
 		self.gps_fixed = bool(self.drone.get_state(olympe.messages.ardrone3.GPSSettingsState.GPSFixStateChanged)['fixed'])  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_gps.html#olympe.messages.ardrone3.GPSSettingsState.GPSFixStateChanged
@@ -659,7 +678,7 @@ class Anafi(Node):
 					cam_id=0,
 					state=olympe.enums.camera.state(autorecord)))  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.enums.camera.state
 				self.node.get_logger().debug("Parameter 'autorecord' set to '%s'" % olympe.enums.camera.state(autorecord))
-			if parameter.name == 'disparity_map' and self.model in {'ai'}:
+			if parameter.name == 'disparity_map' and self.model in {'ai'} and not self.simulation_environment:  # FIXME: check why if does not work in simulation
 				self.disparity_map = parameter.value
 				self.drone.streaming.stop()
 				self.drone.streaming.start(media_name=("Disparity map" if self.disparity_map else "Front camera"))
@@ -842,7 +861,7 @@ class Anafi(Node):
 								else:
 									self.node.get_logger().fatal("Unusable signal: %sdBm" % str(rssi), throttle_duration_sec=0.1)
 
-				if self.model in {'ai'}:  # TODO: check to which network the drone is connected (wlan or cellular)
+				if self.model in {'ai'} and vmeta[1]['links'] != []:  # TODO: check to which network the drone is connected (wlan or cellular)
 					self.msg_quality.data = vmeta[1]['links'][0]['starfish']['quality']  # [0=bad, 5=good]
 					self.pub_link_quality.publish(self.msg_quality)
 
@@ -876,8 +895,9 @@ class Anafi(Node):
 	def takeoff_callback(self, request, response):
 		self.node.get_logger().warning("Taking off")
 		self.drone(TakeOff()).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.Piloting.TakeOff
-		run_id = self.drone.get_state(olympe.messages.common.RunState.RunIdChanged) # https://developer.parrot.com/docs/olympe/arsdkng_common_runstate.html#olympe.messages.common.RunState.RunIdChanged
-		self.node.get_logger().debug('Run Id: %s' % (run_id['runId']))
+		if not self.simulation_environment:
+			run_id = self.drone.get_state(olympe.messages.common.RunState.RunIdChanged) # https://developer.parrot.com/docs/olympe/arsdkng_common_runstate.html#olympe.messages.common.RunState.RunIdChanged
+			self.node.get_logger().debug('Run Id: %s' % (run_id['runId']))
 		return response
 	
 	def arm_callback(self, request, response):
@@ -1295,3 +1315,4 @@ def main(args=None):
 
 if __name__ == '__main__':
 	main()
+
