@@ -94,11 +94,14 @@
 | camera/hdr 			| bool 		| true 			| {true enabled, false: disabled} 						| high dynamic range (HDR) mode 	| 		|
 | camera/max_zoom_speed 	| float		| 10.0 			| [0.1, 10.0] 									| maximum zoom speed 			| tan(º)/s	|
 | camera/mode 			| int 		| 0 			| {0: camera in recording mode, 1: camera in photo mode} 			| camera mode 				| 		|
-| camera/relative 		| bool 		| false 		| {true: commands relative to the camera pitch, false: otherwise} 		| 					| 		| 
-| camera/rendering 		| int 		| 0 			| {0: visible, 1: thermal, 2: blended} 						| thermal image rendering mode (1 and 2 supported only by ANAFI Thermal and ANAFI USA) 						| |
+| camera/stereo/disparity_map 	| bool 		| false 			| {true: enabled, false: disabled} 			| stream disparity map image (supported only by ANAFI Ai) 				| 		|
+| camera/stereo/obstacle_avoidance 	| bool 		| true 			| {true: enabled, false: disabled} 			| obstacle avoidance (supported only by ANAFI Ai) 				| 		|
+| camera/rendering 		| int 		| 0 			| {0: visible, 1: thermal, 2: blended} 						| thermal image rendering mode (supported only by ANAFI Thermal and ANAFI USA) 						| |
 | camera/streaming 		| int 		| 0 			| {0: minimize latency with average reliability (best for piloting), 1: maximize reliability with an average latency, 2: maximize reliability using a frame-rate decimation} 	| streaming mode 	| |
 | camera/style 			| int 		| 0 			| {0: natural look, 1: flat and desaturated images, best for post-processing, 2: intense - bright colors, warm shade, high contrast, 3: pastel - soft colors, cold shade, low contrast} | images style 		| |
+| device/ip 	| string 	| "192.168.53.1"			| 										| IP address of the connected device 		| 		|
 | drone/banked_turn 		| bool 		| true 			| {true: enabled, false: disabled} 						| banked turn 				| 		|
+| drone/camera_operated 		| bool 		| false 		| {true: commands relative to the camera pitch, false: otherwise} 		| 					| 		| 
 | drone/max_altitude 		| float		| 2.0 			| [0.5, 4000.0] 								| maximum altitude 			| m 		|
 | drone/max_distance 		| float 	| 10.0 			| [10.0, 4000.0] 								| maximum distance 			| m 		| 
 | drone/max_horizontal_speed 	| float 	| 1.0 			| [0.1, 15.0] 									| maximum horizontal speed 		| m/s 		| 
@@ -106,7 +109,9 @@
 | drone/max_pitch_roll_rate 	| float 	| 200.0 		| [40.0, 300.0] 								| maximum pitch and roll rotation speed | º/s 		| 
 | drone/max_vertical_speed 	| float 	| 1.0 			| [0.1, 4.0] 									| maximum vertical speed 		| m/s 		| 
 | drone/max_yaw_rate 		| float 	| 180.0 		| [3.0, 200.0] 									| maximum yaw rotation speed 		| º/s 		| 
-| drone/model 			| string 	| 			| {"4k", "thermal", "usa", "ai", "unknown"} 					| drone's model 			| 		|
+| drone/model 			| string 	| "4k"			| {"4k", "thermal", "usa", "ai"} 					| drone's model 			| 		|
+| drone/name 			| string 	| 			| "[drone/model]_[device/ip]" 					| drone's name 			| 		|
+| drone/serial 			| string 	| 			|  					| drone's serial number 			| 		|
 | gimbal/max_speed 		| float 	| 180.0 		| [1.0, 180.0] 									| maximum gimbal speed 			| º/s 		| 
 | home/autotrigger 		| bool 		| true 			| {true: enabled, false: disabled} 						| auto trigger return-to-home 		| 		|
 | home/ending_behavior 		| int 		| 1 			| {0: land, 1: hover} 								| return-to-home ending behavior 	| 		|
@@ -114,8 +119,9 @@
 | home/min_altitude 		| float 	| 20.0 			| [20.0, 100.0] 								| return-to-home minimum altitude 	| m 		| 
 | home/precise 			| bool 		| true 			| {true: enabled, false: disabled} 						| precise return-to-home 		| 		|
 | home/type 			| int 		| 4 			| {1: take-off location, 3: user-set custom location, 4: pilot location} 	| home type for return-to-home 		| 		|
-| obstacle_avoidance 		| bool 		| true 			| {true: enabled, false: disabled} 						| obstacle avoidance 			| 		|
-| storage/download_folder 	| string 	| "~/Pictures/Anafi" 	| 										|path to the download folder 		| 		|
+| link/wifi_key 			| string 	| 			|  					| WiFi key for the drone's access point (for direct connection to the drone) 			| 		|
+| storage/download_folder 	| string 	| "~/Pictures/Anafi" 	| 										| path to the download folder 		| 		|
+| storage/rest_api_version 	| int 	| 1 	| 										| version of the REST API 		| 		|
 
 ## Custom messages
 
