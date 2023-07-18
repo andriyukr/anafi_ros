@@ -34,7 +34,7 @@ from sensor_msgs.msg import Image, CameraInfo, NavSatFix
 from builtin_interfaces.msg import Time
 from std_srvs.srv import Trigger, SetBool
 from cv_bridge import CvBridge, CvBridgeError
-from olympe.messages import gimbal, camera, mapper, leds, thermal, obstacle_avoidance
+from olympe.messages import gimbal, camera, mapper, move, leds, thermal, obstacle_avoidance
 from olympe.messages.drone_manager import connection_state
 from olympe.messages.ardrone3.Piloting import TakeOff, UserTakeOff, Landing, Emergency, PCMD, NavigateHome
 from olympe.messages.ardrone3.PilotingState import FlyingStateChanged, PositionChanged, SpeedChanged, AttitudeChanged, AltitudeChanged, GpsLocationChanged
@@ -209,7 +209,7 @@ class Anafi(Node):
 
 		if self.skycontroller_enabled:  # connect to SkyController
 			self.node.get_logger().info("Connecting through SkyController")
-			self.drone = olympe.SkyController(self.ip)
+			self.drone = olympe.SkyController(self.ip) # self.drone = olympe.Drone(self.ip)
 			#self.skyctrl = self.drone  # TODO: remove
 		else:  # connect to Anafi
 			self.node.get_logger().info("Connecting directly to Anafi")
@@ -1254,7 +1254,7 @@ class Anafi(Node):
 			d_psi=msg.dyaw, # rotation of heading (rad)
 			max_horizontal_speed=self.max_horizontal_speed,
 			max_vertical_speed=self.max_vertical_speed,
-			max_yaw_rate=self.max_yaw_rate
+			max_yaw_rotation_speed=self.max_yaw_rate
 		)).wait()
 	
 	def moveTo_callback(self, msg):		
@@ -1266,7 +1266,7 @@ class Anafi(Node):
 			heading=msg.heading, # heading relative to the North (degrees)
 			max_horizontal_speed=self.max_horizontal_speed,
 			max_vertical_speed=self.max_vertical_speed,
-			max_yaw_rate=self.max_yaw_rate
+			max_yaw_rotation_speed=self.max_yaw_rate
 		)).wait()
 
 	def zoom_callback(self, msg):

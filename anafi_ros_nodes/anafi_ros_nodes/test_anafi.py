@@ -325,22 +325,22 @@ class TestAnafi(Node):
 	def gimbal_test(self):
 		print("\n***** GIMBAL TEST *****")
 
-		# Test set/get 'max_gimbal_speed'
-		print("Set/get 'max_gimbal_speed' parameter", end=" ", flush=True)
+		# Test set/get 'gimbal/max_speed'
+		print("Set/get 'gimbal/max_speed' parameter", end=" ", flush=True)
 		req = GetParameters.Request()
-		req.names = ['max_gimbal_speed']
+		req.names = ['gimbal/max_speed']
 		future = self.get_parameters_client.call_async(req)
 		while not future.done():
 			time.sleep(0.1)
 		max_gimbal_speed = future.result().values[0].double_value
 		req = SetParameters.Request()
-		req.parameters = [Parameter(name='max_gimbal_speed', value=ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=max_gimbal_speed/2 + 1.1))]
+		req.parameters = [Parameter(name='gimbal/max_speed', value=ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=max_gimbal_speed/2 + 1.1))]
 		timer_start = timer()
 		future = self.set_parameters_client.call_async(req)
 		while not future.done():
 			time.sleep(0.1)
 		req = GetParameters.Request()
-		req.names = ['max_gimbal_speed']
+		req.names = ['gimbal/max_speed']
 		future = self.get_parameters_client.call_async(req)
 		while not future.done():
 			time.sleep(0.1)
@@ -354,7 +354,7 @@ class TestAnafi(Node):
 
 		# Set max gimbal speed
 		req = SetParameters.Request()
-		req.parameters = [Parameter(name='max_gimbal_speed', value=ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=180.0))]
+		req.parameters = [Parameter(name='gimbal/max_speed', value=ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=180.0))]
 		future = self.set_parameters_client.call_async(req)
 		while not future.done():
 			time.sleep(0.1)
