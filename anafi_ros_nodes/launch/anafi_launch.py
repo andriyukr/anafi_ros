@@ -1,10 +1,10 @@
 # Usage: 
 # 	- connection through Skycontroiller [recommended]:
-# 		ros2 launch anafi_ros_nodes anafi_launch.py namespace:='anafi' ip:='192.168.53.1'
+# 		ros2 launch anafi_ros_nodes anafi_launch.py namespace:='anafi' ip:='192.168.53.1' model:='ai'
 #	- direct connection to Anafi:
-# 		ros2 launch anafi_ros_nodes anafi_launch.py namespace:='anafi' ip:='192.168.42.1'
+# 		ros2 launch anafi_ros_nodes anafi_launch.py namespace:='anafi' ip:='192.168.42.1' model:='ai'
 #	- connection to the simulated drone in Sphinx:
-# 		ros2 launch anafi_ros_nodes anafi_launch.py namespace:='anafi' ip:='10.202.0.1'
+# 		ros2 launch anafi_ros_nodes anafi_launch.py namespace:='anafi' ip:='10.202.0.1' model:='ai'
 
 import os
 
@@ -24,6 +24,10 @@ def generate_launch_description():
 		"ip", 
 		default_value="192.168.53.1",  # Anafi: '192.168.42.1', SkyController: '192.168.53.1', Sphinx: '10.202.0.1'
 		description="IP address of the device")
+	model_arg = DeclareLaunchArgument(
+		'model', 
+		default_value='ai',  # {'4k', 'thermal', 'usa', 'ai'}
+		description='Model of the drone')
 
 	config = os.path.join(
 		get_package_share_directory('anafi_ros_nodes'),
@@ -39,7 +43,7 @@ def generate_launch_description():
 		emulate_tty=True,
 		arguments=['--ros-args', '--params-file', config, '--log-level', 'INFO'],
 		parameters=[
-			{'drone/model': 'ai'},  # {'4k', 'thermal', 'usa', 'ai'},
+			{'drone/model': LaunchConfiguration('model')},
 			{'device/ip': LaunchConfiguration('ip')}
 		]
 	)
@@ -47,5 +51,6 @@ def generate_launch_description():
 	return LaunchDescription([
 		namespace_arg,
 		ip_arg,
+		model_arg,
 		anafi_node
 	])
