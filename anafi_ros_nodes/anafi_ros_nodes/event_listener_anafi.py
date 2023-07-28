@@ -47,8 +47,10 @@ from olympe.messages.rth import state as rth_state
 from olympe.messages.user_storage import format_progress
 from olympe.messages.user_storage import info as user_storage_info
 from olympe.messages.user_storage import monitor as user_storage_monitor
+from olympe.messages.user_storage_v2 import monitor as user_storage_monitor2
 from olympe.messages.gimbal import calibration_state
 from olympe.messages.camera import zoom_level
+from olympe.messages.camera2.Event import ZoomLevel as zoom_level2
 from olympe.messages.ardrone3.GPSState import NumberOfSatelliteChanged
 from olympe.messages.ardrone3.PilotingState import AltitudeChanged
 from olympe.messages.ardrone3.PilotingState import AttitudeChanged
@@ -95,7 +97,7 @@ class EventListenerAnafi(olympe.EventListener):
 		self.pub_target_trajectory = self.drone.node.create_publisher(TargetTrajectory, 'target/trajectory', qos_profile_system_default)
 		self.pub_gimbal_relative = self.drone.node.create_publisher(Vector3Stamped, 'gimbal/attitude/relative', qos_profile_sensor_data)
 		self.pub_gimbal_absolute = self.drone.node.create_publisher(Vector3Stamped, 'gimbal/attitude/absolute', qos_profile_sensor_data)
-		self.pub_media_available = self.drone.node.create_publisher(UInt64, 'media/available', qos_profile_system_default)
+		self.pub_storage_available = self.drone.node.create_publisher(UInt64, 'storage/available', qos_profile_system_default)
 		self.pub_home_location = self.drone.node.create_publisher(PointStamped, 'home/location', qos_profile_system_default)  # TODO: change to Location message
 
 		self.msg_zoom = Float32()
@@ -106,7 +108,7 @@ class EventListenerAnafi(olympe.EventListener):
 		self.msg_battery_voltage = Float32()
 		self.msg_trajectory = TargetTrajectory()
 		self.msg_gimbal = Vector3Stamped()
-		self.msg_media_available = UInt64()
+		self.msg_storage_available = UInt64()
 		self.msg_home_location = PointStamped()
 
 	""" 
@@ -120,11 +122,11 @@ class EventListenerAnafi(olympe.EventListener):
 										 (show_motors(motor_error['motorIds']), motor_error['motorError'].name))
 
 	@olympe.listen_event(authentication_failed(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_drone_manager.html#olympe.messages.drone_manager.authentication_failed
-	def on_authentication_failed(self, event, scheduler):
+	def onAuthenticationFailed(self, event, scheduler):
 		self.drone.node.get_logger().fatal('Authentication failed because of a wrong key (passphrase)')
 
 	@olympe.listen_event(connection_refused(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_drone_manager.html#olympe.messages.drone_manager.connection_refused
-	def on_connection_refused(self, event, scheduler):
+	def onConnectionRefused(self, event, scheduler):
 		self.drone.node.get_logger().fatal('Connection refused by the drone because another peer is already connected')
 
 	""" 
@@ -146,7 +148,7 @@ class EventListenerAnafi(olympe.EventListener):
 				self.drone.node.get_logger().error("Gimbal Allert: " + error.name)
 
 	@olympe.listen_event(format_result(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_user_storage.html#olympe.messages.user_storage.format_result
-	def on_format_result(self, event, scheduler):
+	def onFormatResult(self, event, scheduler):
 		format_result = event.args['result']  # https://developer.parrot.com/docs/olympe/arsdkng_user_storage.html#olympe.enums.user_storage.formatting_result
 		if format_result is formatting_result.error:
 			self.drone.node.get_logger().error('Formatting failed')
@@ -216,7 +218,7 @@ class EventListenerAnafi(olympe.EventListener):
 			self.drone.node.get_logger().warning('%s is NOT OK' % sensor['sensorName'].name)
 
 	@olympe.listen_event(home_reachability_message(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_rth.html#olympe.messages.rth.home_reachability
-	def on_home_reachability(self, event, scheduler):
+	def onHomeReachability(self, event, scheduler):
 		home_reachability = event.args['status']  # https://developer.parrot.com/docs/olympe/arsdkng_rth.html#olympe.enums.rth.home_reachability
 		if home_reachability is home_reachability_enum.unknown:
 			self.drone.node.get_logger().warning('Home reachability is unknown')
@@ -228,7 +230,7 @@ class EventListenerAnafi(olympe.EventListener):
 			self.drone.node.get_logger().warning('Home is not reachable')
 
 	@olympe.listen_event(rth_auto_trigger(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_rth.html#olympe.messages.rth.rth_auto_trigger
-	def on_home_reachability(self, event, scheduler):
+	def onRTHAutoTrigger(self, event, scheduler):
 		rth_auto_trigger = event.args['reason']  # https://developer.parrot.com/docs/olympe/arsdkng_rth.html#olympe.enums.rth.auto_trigger_reason
 		if rth_auto_trigger is auto_trigger_reason.battery_critical_soon:
 			self.drone.node.get_logger().warning('Battery will soon be critical', throttle_duration_sec=60)
@@ -251,7 +253,7 @@ class EventListenerAnafi(olympe.EventListener):
 		self.drone.node.get_logger().info('Mission item #%i executed' % event.args['idx'])
 
 	@olympe.listen_event(follow_me_state(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_followme.html#olympe.messages.follow_me.state
-	def on_follow_me_state(self, event, scheduler):
+	def onFollowMeState(self, event, scheduler):
 		follow_me = event.args
 		if follow_me['mode'] != mode.none:
 			self.drone.node.get_logger().info('FollowMe state: mode=%s, behavior=%s, animation=%s' %
@@ -259,28 +261,28 @@ class EventListenerAnafi(olympe.EventListener):
 										 follow_me['animation'].name))
 
 	@olympe.listen_event(calibration_result(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_gimbal.html#olympe.messages.gimbal.calibration_result
-	def on_gimbal_calibration_result(self, event, scheduler):
+	def onGimbalCalibrationResult(self, event, scheduler):
 		calibration_result = event.args
 		self.drone.node.get_logger().info('Gimbal calibration result: ' + calibration_result['result'].name)
 
 	@olympe.listen_event(move_info(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_move.html#olympe.messages.move.info
-	def on_move_info(self, event, scheduler):
+	def onMoveInfo(self, event, scheduler):
 		move_info = event.args
 		self.drone.node.get_logger().info('Move info: ' + str(move_info))
 
 	@olympe.listen_event(rth_state(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_rth.html#olympe.messages.rth.state
-	def on_rth_state(self, event, scheduler):
+	def onRTHState(self, event, scheduler):
 		state = event.args
 		self.drone.node.get_logger().info('RTH: state=%s, reason=%s' % (state['state'].name, state['reason'].name))
 
 	@olympe.listen_event(format_progress(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_user_storage.html#olympe.messages.user_storage.format_progress
-	def on_format_progress(self, event, scheduler):
+	def onFormatProgress(self, event, scheduler):
 		format_progress = event.args
 		self.drone.node.get_logger().info('Formatting --> %s (%i%%)' %
 									(format_progress['step'].name, format_progress['percentage']))
 
 	@olympe.listen_event(user_storage_info(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_user_storage.html#olympe.messages.user_storage.info
-	def on_user_storage_info(self, event, scheduler):
+	def onUserStorageInfo(self, event, scheduler):
 		capacity = event.args['capacity']
 		available_bytes = self.drone.drone.get_state(user_storage_monitor)['available_bytes']  # https://developer.parrot.com/docs/olympe/arsdkng_user_storage.html#olympe.messages.user_storage.monitor
 		self.drone.node.get_logger().info_once('Available space: %.1f/%.1fGB' % (available_bytes/(2**30), capacity/(2**30)))
@@ -289,19 +291,24 @@ class EventListenerAnafi(olympe.EventListener):
 	DEBUG  
 	"""
 	@olympe.listen_event(calibration_state(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_gimbal.html#olympe.messages.gimbal.calibration_state
-	def on_gimbal_calibration_state(self, event, scheduler):
+	def onGimbalCalibrationState(self, event, scheduler):
 		calibration_state = event.args
 		self.drone.node.get_logger().debug('Gimbal calibration state: ' + calibration_state['state'].name)
 
 	@olympe.listen_event(connection_state(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_drone_manager.html#olympe.messages.drone_manager.connection_state
-	def on_connection_state(self, event, scheduler):
+	def onConnectionState(self, event, scheduler):
 		self.drone.node.get_logger().debug("connection_state: " + str(event.args))
 
 	"""
 	PUBLISHERS
 	"""
 	@olympe.listen_event(zoom_level(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.messages.camera.zoom_level
-	def onZoomLevel(self, event, scheduler):
+	def onZoomLevel(self, event, scheduler):  # for ANAFI 4K, Thermal, USA 
+		self.msg_zoom.data = event.args['level']
+		self.pub_zoom.publish(self.msg_zoom)
+		
+	@olympe.listen_event(zoom_level2(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_camera_v2.html#olympe.messages.camera2.Event.ZoomLevel
+	def onZoomLevel2(self, event, scheduler):  # for ANAFI Ai
 		self.msg_zoom.data = event.args['level']
 		self.pub_zoom.publish(self.msg_zoom)
 
@@ -367,7 +374,7 @@ class EventListenerAnafi(olympe.EventListener):
 		self.pub_battery_voltage.publish(self.msg_battery_voltage)
 
 	@olympe.listen_event(target_trajectory(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_followme.html#olympe.messages.follow_me.target_trajectory
-	def on_target_trajectory(self, event, scheduler):
+	def onTargetTrajectory(self, event, scheduler):
 		trajectory = event.args
 		self.drone.node.get_logger().info('target_trajectory: ' + str(trajectory))
 		self.msg_trajectory.header.stamp = self.drone.node.get_clock().now().to_msg()
@@ -397,12 +404,17 @@ class EventListenerAnafi(olympe.EventListener):
 		self.pub_gimbal_relative.publish(self.msg_gimbal)
 
 	@olympe.listen_event(user_storage_monitor(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_user_storage.html#olympe.messages.user_storage.monitor
-	def on_user_storage_monitor(self, event, scheduler):
-		self.msg_media_available.data = event.args['available_bytes']
-		self.pub_media_available.publish(self.msg_media_available)
+	def onUserStorageMonitor(self, event, scheduler):  # for ANAFI 4K, Thermal, USA
+		self.msg_storage_available.data = event.args['available_bytes']
+		self.pub_storage_available.publish(self.msg_storage_available)
+		
+	@olympe.listen_event(user_storage_monitor2(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_user_storage_v2.html#olympe.messages.user_storage_v2.monitor
+	def onUserStorageMonitor2(self, event, scheduler):  # for ANAFI Ai
+		self.msg_storage_available.data = event.args['available_bytes']
+		self.pub_storage_available.publish(self.msg_storage_available)
 
 	@olympe.listen_event(HomeChanged(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_gps.html#olympe.messages.ardrone3.GPSSettingsState.HomeChanged
-	def on_home_changed(self, event, scheduler):
+	def onHomeChanged(self, event, scheduler):
 		home = event.args
 		self.drone.node.get_logger().info('home: ' + str(home))
 		if home['latitude'] != 500 and home['longitude'] != 500 and home['altitude'] != 500:

@@ -70,19 +70,19 @@ logness.update_config({  # https://developer.parrot.com/docs/olympe/olympeapi.ht
 		"log_file": {
 			"class": "logness.FileHandler",
 			"formatter": "default_formatter",
-			"filename": "olympe.log"
+			"filename": "anafi.log"
 		}
 	},
-    "loggers": {
-        "olympe": {
+	"loggers": {
+		"olympe": {
 			"level": "WARNING",  # {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"}
-			"handlers": ["console", "log_file"]
-        },
-        "ulog": {
-            "level": "CRITICAL",  # {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"}
-			"handlers": ["console", "log_file"]
-        }
-    }
+			"handlers": ["console"]
+		},
+		"ulog": {
+			"level": "CRITICAL",  # {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"}
+			"handlers": ["console"]
+		}
+	}
 })
 
 class Anafi(Node):
@@ -189,6 +189,7 @@ class Anafi(Node):
 		self.drone_serial = self.node.declare_parameter('drone/serial', '', ParameterDescriptor(read_only=True)).value
 		self.wifi_key = self.node.declare_parameter('link/wifi_key', '', ParameterDescriptor(read_only=True)).value
 		self.rest_api_version = self.node.declare_parameter('storage/rest_api_version', 1, ParameterDescriptor(read_only=True)).value
+		self.node.declare_parameter("drone/offboard", False,  ParameterDescriptor(description="Enable offboard or manual control"))
 
 		if self.ip == '192.168.42.1':  # direct WiFi connection to the drone
 			self.skycontroller_enabled = False
@@ -223,6 +224,7 @@ class Anafi(Node):
 
 		self.state = 'LANDED'
 		self.gps_fixed = False
+		self.offboard = False
 
 		self.connect()
 
@@ -353,8 +355,8 @@ class Anafi(Node):
 
 		self.node.get_logger().info('Drone model: ' + self.model)
 		self.node.set_parameters([Parameter('drone/model', rclpy.Parameter.Type.STRING, self.model)])
-		self.node.declare_parameter('drone/name', self.model + "_" + self.ip, ParameterDescriptor(read_only=True))  # TODO: replace IP with sequence number; make this parameter read only
-
+		self.node.declare_parameter('drone/name', self.model + "_" + self.ip, ParameterDescriptor(description="Drones name (model + IP)", read_only=True))  # TODO: replace IP with sequence number; make this parameter read only
+		
 		if self.model in {'4k', 'thermal', 'usa', 'ai'}:
 			with open(get_package_share_directory('anafi_ros_nodes') + "/camera_" + self.model + ".yaml", "r") as file_handle:  # load camera info from file
 				camera_info = yaml.load(file_handle, Loader=yaml.FullLoader)
@@ -493,14 +495,13 @@ class Anafi(Node):
 					self.pub_state.publish(self.msg_state)
 					self.node.get_logger().info("Connection to Anafi: %s" % self.drone.get_state(connection_state)["state"].name, once=True)
 				time.sleep(1.0)
-			self.msg_state.data = "CONNECTED_DRONE"
-			self.pub_state.publish(self.msg_state)
 			self.node.get_logger().info("Connection to Anafi: %s" % (self.drone.get_state(connection_state)["state"].name))
 		else:  # connect to Anafi
-			self.msg_state.data = "CONNECTED_DRONE"
-			self.pub_state.publish(self.msg_state)
 			self.node.get_logger().info("Connected to Anafi")
 			self.switch_offboard()
+			
+		self.msg_state.data = "CONNECTED_DRONE"
+		self.pub_state.publish(self.msg_state)
 
 		self.event_listener_anafi.subscribe()
 			
@@ -594,7 +595,16 @@ class Anafi(Node):
 				camera_operated = parameter.value
 				self.drone(set_style(style=style(int(camera_operated))))  # https://developer.parrot.com/docs/olympe/arsdkng_piloting_style.html#olympe.messages.piloting_style.set_style
 				self.node.get_logger().debug("Parameter 'drone/camera_operated' set to %r" % camera_operated)
-
+			if parameter.name == 'drone/offboard':
+				offboard = parameter.value
+				if offboard:
+					self.switch_offboard()
+				else:
+					
+					self.switch_manual()
+					if not self.skycontroller_enabled:
+						return SetParametersResult(successful=False, reason="Cannot swith to manual control without Skycontroller!")
+				
 			# RTH related
 			if parameter.name == 'home/type':
 				home_type = parameter.value
@@ -1231,9 +1241,9 @@ class Anafi(Node):
 		return response
 
 	def offboard_callback(self, request, response):
-		if request.data and not self.offboard:
+		if request.data:
 			self.switch_offboard()
-		if not request.data and self.offboard:
+		else:
 			self.switch_manual()
 		return response
 
@@ -1287,19 +1297,27 @@ class Anafi(Node):
 			roll=msg.roll))
 
 	def switch_manual(self):
-		# button: 0 = return home, 1 = takeoff/land, 2 = back left, 3 = back right
-		self.drone(mapper.grab(buttons=(0<<0|0<<1|0<<2|1<<3), axes=0)).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_mapper.html#olympe.messages.mapper.grab
-		self.drone(setPilotingSource(source="SkyController")).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_skyctrl_copiloting.html#olympe.messages.skyctrl.CoPiloting.setPilotingSource
-		self.node.get_logger().warning("Control: Manual")
-		self.offboard = False
+		if self.offboard:
+			if self.skycontroller_enabled:
+				# button: 0 = return home, 1 = takeoff/land, 2 = back left, 3 = back right
+				self.drone(mapper.grab(buttons=(0<<0|0<<1|0<<2|1<<3), axes=0)).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_mapper.html#olympe.messages.mapper.grab
+				self.drone(setPilotingSource(source="SkyController")).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_skyctrl_copiloting.html#olympe.messages.skyctrl.CoPiloting.setPilotingSource
+				self.node.set_parameters([Parameter('drone/offboard', rclpy.Parameter.Type.BOOL, False)])
+				self.node.get_logger().warning("Control: Manual")
+				self.offboard = False
+			else:
+				self.node.get_logger().error("Cannot swith to manual control without Skycontroller!")
 			
 	def switch_offboard(self):
-		# button: 0 = return home, 1 = takeoff/land, 2 = back left, 3 = back right
-		# axis:   0 = yaw, 1 = throttle, 2 = roll, 3 = pitch, 4 = camera, 5 = zoom
-		self.drone(mapper.grab(buttons=(1<<0|0<<1|1<<2|1<<3), axes=(1<<0|1<<1|1<<2|1<<3|1<<4|1<<5)))  # https://developer.parrot.com/docs/olympe/arsdkng_mapper.html#olympe.messages.mapper.grab
-		self.drone(setPilotingSource(source="Controller")).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_skyctrl_copiloting.html#olympe.messages.skyctrl.CoPiloting.setPilotingSource
-		self.node.get_logger().warning("Control: Offboard")
-		self.offboard = True
+		if not self.offboard: 
+			if self.skycontroller_enabled:
+				# button: 0 = return home, 1 = takeoff/land, 2 = back left, 3 = back right
+				# axis:   0 = yaw, 1 = throttle, 2 = roll, 3 = pitch, 4 = camera, 5 = zoom
+				self.drone(mapper.grab(buttons=(1<<0|0<<1|1<<2|1<<3), axes=(1<<0|1<<1|1<<2|1<<3|1<<4|1<<5)))  # https://developer.parrot.com/docs/olympe/arsdkng_mapper.html#olympe.messages.mapper.grab
+				self.drone(setPilotingSource(source="Controller")).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_skyctrl_copiloting.html#olympe.messages.skyctrl.CoPiloting.setPilotingSource
+			self.node.set_parameters([Parameter('drone/offboard', rclpy.Parameter.Type.BOOL, True)])
+			self.node.get_logger().warning("Control: Offboard")
+			self.offboard = True
 
 def main(args=None):
 	rclpy.init(args=sys.argv)
