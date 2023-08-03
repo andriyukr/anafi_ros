@@ -71,8 +71,8 @@ class TestAnafi(Node):
 		self.node.create_subscription(NavSatFix, 'drone/gps/location', self.drone_gps_location_callback, qos_profile_sensor_data)
 		self.node.create_subscription(Float32, 'battery/voltage', self.battery_voltage_callback, qos_profile_system_default)
 		self.node.create_subscription(TargetTrajectory, 'target/trajectory', self.target_trajectory_callback, qos_profile_system_default)
-		self.node.create_subscription(Vector3Stamped, 'gimbal/relative', self.gimbal_relative_callback, qos_profile_sensor_data)
-		self.node.create_subscription(Vector3Stamped, 'gimbal/absolute', self.gimbal_absolute_callback, qos_profile_sensor_data)
+		self.node.create_subscription(Vector3Stamped, 'gimbal/attitude/relative', self.gimbal_relative_callback, qos_profile_sensor_data)
+		self.node.create_subscription(Vector3Stamped, 'gimbal/attitude/absolute', self.gimbal_absolute_callback, qos_profile_sensor_data)
 		self.node.create_subscription(UInt64, 'media/available', self.media_available_callback, qos_profile_system_default)
 		self.node.create_subscription(PointStamped, 'home/location',  self.home_location_callback, qos_profile_system_default)
 		self.node.create_subscription(QuaternionStamped, 'skycontroller/attitude', self.skycontroller_attitude_callback, qos_profile_sensor_data)
@@ -673,7 +673,6 @@ class TestAnafi(Node):
 
 		# Test gimbal relative roll orientation
 		print("Gimbal relative roll orientation", end=" ", flush=True)
-		print(" relx" , self.gimbal_relative)
 		msg_gimbal_command = GimbalCommand()
 		msg_gimbal_command.mode = 0
 		msg_gimbal_command.frame = 1
@@ -686,7 +685,7 @@ class TestAnafi(Node):
 				success = True
 				break
 			time.sleep(0.1)
-		verdict(success, "duration = %.3fs" % (timer() - timer_start),  "gimbal_roll == %.3fdeg" % self.gimbal_relative.vector.x)
+		verdict(success, "duration = %.3fs" % (timer() - timer_start),  "gimbal_roll == %.3fdeg != %.3fdeg" % (self.gimbal_relative.vector.x, msg_gimbal_command.roll))
 
 		# Test gimbal relative roll velocity
 		print("Gimbal relative roll velocity", end=" ", flush=True)
@@ -1031,7 +1030,7 @@ class TestAnafi(Node):
 		pass
 
 	def gimbal_relative_callback(self, msg):
-		self.gimbal_relative = msg.vector
+		self.gimbal_relative = msg
 
 	def gimbal_absolute_callback(self, msg):
 		self.gimbal_absolute = msg
