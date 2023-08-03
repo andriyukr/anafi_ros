@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# ros2 run anafi_ros_nodes test_anafi --ros-args -r __ns:=/anafi1
+# ros2 run anafi_ros_nodes test_anafi --ros-args -r __ns:=/anafi
 
 import numpy as np
 import rclpy
@@ -167,6 +167,10 @@ class TestAnafi(Node):
 
 		#self.camera_test()
 		self.gimbal_test()
+		#self.drone__takeoff_test()
+		#self.drone_land_test()
+		#self.drone_rth_test()
+		#self.drone_param_set_get()
 
 	def skycontroller_connection_test(self):
 		print("\n***** SKYCONTROLLER CONNECTION TEST *****")
@@ -198,25 +202,319 @@ class TestAnafi(Node):
 		verdict(success, "", "drone_state == " + self.drone_state)
 		return success
 
+	def drone__takeoff_test(self):
+		#takeoff test
+		print("drone takeoff test", end=" ", flush=True)
+		req = Trigger.Request()
+		timer_start = timer()
+		to_altitude=self.drone_altitude
+		future = self.drone_takeoff_client.call_async(req)
+		success = False
+		for i in range(100):
+			if self.drone_state == "HOVERING" and (self.drone_altitude-to_altitude>0.0):
+				success = True 
+				break
+			time.sleep(0.1)
+		verdict(success, "duration = %.3fs" % (timer() - timer_start), "drone_state == " + self.drone_state)
+			
+	def drone_land_test(self):		
+		print("drone landing test", end=" ", flush=True)
+		req = Trigger.Request()
+		timer_start = timer()
+		future = self.drone_land_client.call_async(req)
+		success = False
+		for i in range(100):
+			if self.drone_state == "LANDED" and np.abs(self.drone_altitude-0.0) < 0.1:
+				success = True 
+				break
+			time.sleep(0.1)
+		verdict(success, "duration = %.3fs" % (timer() - timer_start), "drone_state == " + self.drone_state)
+			
+	def drone_param_set_get(self):
+
+		#test set/get max altitude
+		print("Set/get 'drone max altitude' parameter", end=" ", flush=True)
+		req = GetParameters.Request()
+		req.names = ['drone/max_altitude']
+		future = self.get_parameters_client.call_async(req)
+		while not future.done():
+			time.sleep(0.1)
+		max_altitude = future.result().values[0].double_value
+		req = SetParameters.Request()
+		req.parameters = [Parameter(name='drone/max_altitude', value=ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=max_altitude/2 + 0.1))]
+		timer_start = timer()
+		future = self.set_parameters_client.call_async(req)
+		while not future.done():
+			time.sleep(0.1)
+		req = GetParameters.Request()
+		req.names = ['drone/max_altitude']
+		future = self.get_parameters_client.call_async(req)
+		while not future.done():
+			time.sleep(0.1)
+		success = False
+		for i in range(100):
+			if future.result() is not None and future.result().values[0].double_value == max_altitude/2 + 0.1:
+				success = True
+				break
+			time.sleep(0.1)
+		verdict(success, "duration = %.3fs" % (timer() - timer_start))
+
+        #set max altitude to default
+		req = SetParameters.Request()
+		req.parameters = [Parameter(name='drone/max_altitude', value=ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=2.0))]
+		future = self.set_parameters_client.call_async(req)
+		while not future.done():
+			time.sleep(0.1)		
+			
+
+		#test set/get max_horizontal_speed
+		print("Set/get 'drone max_horizontal_speed' parameter", end=" ", flush=True)
+		req = GetParameters.Request()
+		req.names = ['drone/max_horizontal_speed']
+		future = self.get_parameters_client.call_async(req)
+		while not future.done():
+			time.sleep(0.1)
+		max_horizontal_speed = future.result().values[0].double_value
+		req = SetParameters.Request()
+		req.parameters = [Parameter(name='drone/max_horizontal_speed', value=ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=max_horizontal_speed/2 + 0.1))]
+		timer_start = timer()
+		future = self.set_parameters_client.call_async(req)
+		while not future.done():
+			time.sleep(0.1)
+		req = GetParameters.Request()
+		req.names = ['drone/max_horizontal_speed']
+		future = self.get_parameters_client.call_async(req)
+		while not future.done():
+			time.sleep(0.1)
+		success = False
+		for i in range(100):
+			if future.result() is not None and future.result().values[0].double_value == max_horizontal_speed/2 + 0.1:
+				success = True
+				break
+			time.sleep(0.1)
+		verdict(success, "duration = %.3fs" % (timer() - timer_start))
+
+        #set max_horizontal_speed to default
+		req = SetParameters.Request()
+		req.parameters = [Parameter(name='drone/max_horizontal_speed', value=ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=1.0))]
+		future = self.set_parameters_client.call_async(req)
+		while not future.done():
+			time.sleep(0.1)
+
+
+        #test set/get max_pitch_roll_rate
+		print("Set/get 'max_pitch_roll_rate' parameter", end=" ", flush=True)
+		req = GetParameters.Request()
+		req.names = ['drone/max_pitch_roll_rate']
+		future = self.get_parameters_client.call_async(req)
+		while not future.done():
+			time.sleep(0.1)
+		max_pitch_roll_rate = future.result().values[0].double_value
+		req = SetParameters.Request()
+		req.parameters = [Parameter(name='drone/max_pitch_roll_rate', value=ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=max_pitch_roll_rate/2 + 0.1))]
+		timer_start = timer()
+		future = self.set_parameters_client.call_async(req)
+		while not future.done():
+			time.sleep(0.1)
+		req = GetParameters.Request()
+		req.names = ['drone/max_pitch_roll_rate']
+		future = self.get_parameters_client.call_async(req)
+		while not future.done():
+			time.sleep(0.1)
+		success = False
+		for i in range(100):
+			if future.result() is not None and future.result().values[0].double_value == max_pitch_roll_rate/2 + 0.1:
+				success = True
+				break
+			time.sleep(0.1)
+		verdict(success, "duration = %.3fs" % (timer() - timer_start))
+
+        #set max_pitch_roll_rate to default
+		req = SetParameters.Request()
+		req.parameters = [Parameter(name='drone/max_pitch_roll_rate', value=ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=200.0))]
+		future = self.set_parameters_client.call_async(req)
+		while not future.done():
+			time.sleep(0.1)
+
+
+		#test set/get max_vertical_speed
+		print("Set/get max_vertical_speed parameter", end=" ", flush=True)
+		req = GetParameters.Request()
+		req.names = ['drone/max_vertical_speed']
+		future = self.get_parameters_client.call_async(req)
+		while not future.done():
+			time.sleep(0.1)
+		max_vertical_speed = future.result().values[0].double_value
+		req = SetParameters.Request()
+		req.parameters = [Parameter(name='drone/max_vertical_speed', value=ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=max_vertical_speed/2 + 0.1))]
+		timer_start = timer()
+		future = self.set_parameters_client.call_async(req)
+		while not future.done():
+			time.sleep(0.1)
+		req = GetParameters.Request()
+		req.names = ['drone/max_vertical_speed']
+		future = self.get_parameters_client.call_async(req)
+		while not future.done():
+			time.sleep(0.1)
+		success = False
+		for i in range(100):
+			if future.result() is not None and future.result().values[0].double_value == max_vertical_speed/2 + 0.1:
+				success = True 
+				break
+			time.sleep(0.1)
+		verdict(success, "duration = %.3fs" % (timer() - timer_start))
+
+        #set max_vertical_speed to default
+		req = SetParameters.Request()
+		req.parameters = [Parameter(name='drone/max_vertical_speed', value=ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=1.0))]
+		future = self.set_parameters_client.call_async(req)
+		while not future.done():
+			time.sleep(0.1)
+
+
+		#test set/get max_distance
+		print("Set/get 'max_distance' parameter", end=" ", flush=True)
+		req = GetParameters.Request()
+		req.names = ['drone/max_distance']
+		future = self.get_parameters_client.call_async(req)
+		while not future.done():
+			time.sleep(0.1)
+		max_distance = future.result().values[0].double_value
+		req = SetParameters.Request()
+		req.parameters = [Parameter(name='drone/max_distance', value=ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=max_distance + 5.0))]
+		timer_start = timer()
+		future = self.set_parameters_client.call_async(req)
+		while not future.done():
+			time.sleep(0.1)
+		
+		req = GetParameters.Request()
+		req.names = ['drone/max_distance']
+		future = self.get_parameters_client.call_async(req)
+		while not future.done():
+			time.sleep(0.1)
+		success = False
+		for i in range(100):
+			if future.result() is not None and future.result().values[0].double_value == max_distance + 5.0:
+				success = True
+				break
+			time.sleep(0.1)
+		verdict(success, "duration = %.3fs" % (timer() - timer_start))
+
+        #set max_distance to default
+		req = SetParameters.Request()
+		req.parameters = [Parameter(name='drone/max_distance', value=ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=10.0))]
+		future = self.set_parameters_client.call_async(req)
+		while not future.done():
+			time.sleep(0.1)
+
+
+        #test set/get max_yaw_rate
+		print("Set/get 'max_yaw_rate' parameter", end=" ", flush=True)
+		req = GetParameters.Request()
+		req.names = ['drone/max_yaw_rate']
+		future = self.get_parameters_client.call_async(req)
+		while not future.done():
+			time.sleep(0.1)
+		max_yaw_rate = future.result().values[0].double_value
+		req = SetParameters.Request()
+		req.parameters = [Parameter(name='drone/max_yaw_rate', value=ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=max_yaw_rate/2 + 0.1))]
+		timer_start = timer()
+		future = self.set_parameters_client.call_async(req)
+		while not future.done():
+			time.sleep(0.1)
+		req = GetParameters.Request()
+		req.names = ['drone/max_yaw_rate']
+		future = self.get_parameters_client.call_async(req)
+		while not future.done():
+			time.sleep(0.1)
+		success = False
+		for i in range(100):
+			if future.result() is not None and future.result().values[0].double_value == max_yaw_rate/2 + 0.1:
+				success = True
+				break
+			time.sleep(0.1)
+		verdict(success, "duration = %.3fs" % (timer() - timer_start))
+
+        #set max_yaw_rate to default
+		req = SetParameters.Request()
+		req.parameters = [Parameter(name='drone/max_yaw_rate', value=ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=180.0))]
+		future = self.set_parameters_client.call_async(req)
+		while not future.done():
+			time.sleep(0.1)
+	
+
+		#test set/get max_pitch_roll
+		print("Set/get 'drone max_pitch_roll' parameter", end=" ", flush=True)
+		req = GetParameters.Request()
+		req.names = ['drone/max_pitch_roll']
+		future = self.get_parameters_client.call_async(req)
+		while not future.done():
+			time.sleep(0.1)
+		max_pitch_roll = future.result().values[0].double_value
+		req = SetParameters.Request()
+		req.parameters = [Parameter(name='drone/max_pitch_roll', value=ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=max_pitch_roll/2 + 0.1))]
+		timer_start = timer()
+		future = self.set_parameters_client.call_async(req)
+		while not future.done():
+			time.sleep(0.1)
+		req = GetParameters.Request()
+		req.names = ['drone/max_pitch_roll']
+		future = self.get_parameters_client.call_async(req)
+		while not future.done():
+			time.sleep(0.1)
+		success = False
+		for i in range(100):
+			if future.result() is not None and future.result().values[0].double_value == max_pitch_roll/2 + 0.1:
+				success = True
+				break
+			time.sleep(0.1)			
+		verdict(success, "duration = %.3fs" % (timer() - timer_start))
+
+        #set max_pitch_roll to default
+		req = SetParameters.Request()
+		req.parameters = [Parameter(name='drone/max_pitch_roll', value=ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=10.0))]
+		future = self.set_parameters_client.call_async(req)
+		while not future.done():
+			time.sleep(0.1)
+	    
+
+	def drone_rth_test(self):
+		print("drone rth+moveby +potential halt test", end=" ", flush=True)
+		to_location=(round(self.drone_gps_location.latitude,2), round(self.drone_gps_location.longitude,2) , round(self.drone_gps_location.altitude,2))
+		msg_moveby_command = MoveByCommand()
+		msg_moveby_command.dx = 1.0
+		msg_moveby_command.dy = 4.0
+		msg_moveby_command.dz = 5.0
+		msg_moveby_command.dyaw = 0.0
+		success = False
+		timer_start = timer()
+		for i in range(100):
+			self.pub_drone_moveby.publish(msg_moveby_command)
+			time.sleep(0.1)
+		new_loc=(round(self.drone_gps_location.latitude,2), round(self.drone_gps_location.longitude,2) , round(self.drone_gps_location.altitude,2))
+		print(new_loc)
+		#verdict(success, "duration = %.3fs" % (timer() - timer_start),  )
+
+
 	def camera_test(self):
 		print("\n***** CAMERA TEST *****")
 
 		# Test set/get 'max_zoom_speed'
 		print("Set/get 'max_zoom_speed' parameter", end=" ", flush=True)
 		req = GetParameters.Request()
-		req.names = ['max_zoom_speed']
+		req.names = ['camera/max_zoom_speed']
 		future = self.get_parameters_client.call_async(req)
 		while not future.done():
 			time.sleep(0.1)
 		max_zoom_speed = future.result().values[0].double_value
 		req = SetParameters.Request()
-		req.parameters = [Parameter(name='max_zoom_speed', value=ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=max_zoom_speed/2 + 0.1))]
+		req.parameters = [Parameter(name='camera/max_zoom_speed', value=ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=max_zoom_speed/2 + 0.1))]
 		timer_start = timer()
 		future = self.set_parameters_client.call_async(req)
 		while not future.done():
 			time.sleep(0.1)
 		req = GetParameters.Request()
-		req.names = ['max_zoom_speed']
+		req.names = ['camera/max_zoom_speed']
 		future = self.get_parameters_client.call_async(req)
 		while not future.done():
 			time.sleep(0.1)
@@ -230,13 +528,14 @@ class TestAnafi(Node):
 
 		# Set max zoom speed
 		req = SetParameters.Request()
-		req.parameters = [Parameter(name='max_zoom_speed', value=ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=10.0))]
+		req.parameters = [Parameter(name='camera/max_zoom_speed', value=ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=10.0))]
 		future = self.set_parameters_client.call_async(req)
 		while not future.done():
 			time.sleep(0.1)
 
 		# Test zoom level
 		print("Camera zoom level", end=" ", flush=True)
+		print("current zoom level is " , self.camera_zoom)
 		msg_camera_command = CameraCommand()
 		msg_camera_command.mode = 0
 		msg_camera_command.zoom = 2.0
@@ -325,8 +624,8 @@ class TestAnafi(Node):
 	def gimbal_test(self):
 		print("\n***** GIMBAL TEST *****")
 
-		# Test set/get 'gimbal/max_speed'
-		print("Set/get 'gimbal/max_speed' parameter", end=" ", flush=True)
+		# Test set/get 'max_gimbal_speed'
+		print("Set/get 'max_gimbal_speed' parameter", end=" ", flush=True)
 		req = GetParameters.Request()
 		req.names = ['gimbal/max_speed']
 		future = self.get_parameters_client.call_async(req)
@@ -374,6 +673,7 @@ class TestAnafi(Node):
 
 		# Test gimbal relative roll orientation
 		print("Gimbal relative roll orientation", end=" ", flush=True)
+		print(" relx" , self.gimbal_relative)
 		msg_gimbal_command = GimbalCommand()
 		msg_gimbal_command.mode = 0
 		msg_gimbal_command.frame = 1
@@ -653,7 +953,7 @@ class TestAnafi(Node):
 		pass
 
 	def drone_altitude_callback(self, msg):
-		pass
+		self.drone_altitude=msg.data
 
 	def drone_speed_callback(self, msg):
 		pass
@@ -722,7 +1022,7 @@ class TestAnafi(Node):
 		pass
 
 	def drone_gps_location_callback(self, msg):
-		pass
+		self.drone_gps_location=msg
 
 	def battery_voltage_callback(self, msg):
 		pass
@@ -731,7 +1031,7 @@ class TestAnafi(Node):
 		pass
 
 	def gimbal_relative_callback(self, msg):
-		self.gimbal_relative = msg
+		self.gimbal_relative = msg.vector
 
 	def gimbal_absolute_callback(self, msg):
 		self.gimbal_absolute = msg
