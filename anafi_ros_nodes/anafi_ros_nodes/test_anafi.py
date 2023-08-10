@@ -371,7 +371,6 @@ class TestAnafi(Node):
 		while not future.done():
 			time.sleep(0.1)
 
-
 		#test set/get max_distance
 		print("Set/get 'max_distance' parameter", end=" ", flush=True)
 		req = GetParameters.Request()

@@ -28,22 +28,21 @@ from rclpy.parameter import Parameter
 from rclpy.qos import qos_profile_system_default, qos_profile_sensor_data, qos_profile_services_default, qos_profile_parameters, qos_profile_parameter_events
 from rcl_interfaces.msg import ParameterDescriptor, FloatingPointRange, IntegerRange, SetParametersResult
 from ament_index_python.packages import get_package_share_directory
-from std_msgs.msg import UInt8, UInt16, UInt32, UInt64, Int8, Float32, String, Header, Bool
-from geometry_msgs.msg import PoseStamped, PointStamped, QuaternionStamped, TwistStamped, Vector3Stamped, Quaternion, Twist, Vector3
-from sensor_msgs.msg import Image, CameraInfo, NavSatFix
+from std_msgs.msg import UInt8, UInt16, Int8, Float32, String, Header, Bool
+from geometry_msgs.msg import PointStamped, QuaternionStamped, Vector3Stamped
+from sensor_msgs.msg import Image, CameraInfo
 from builtin_interfaces.msg import Time
 from std_srvs.srv import Trigger, SetBool
-from cv_bridge import CvBridge, CvBridgeError
+from cv_bridge import CvBridge
 from olympe.messages import gimbal, camera, mapper, move, leds, thermal, obstacle_avoidance
 from olympe.messages.drone_manager import connection_state
 from olympe.messages.ardrone3.Piloting import TakeOff, UserTakeOff, Landing, Emergency, PCMD, NavigateHome
-from olympe.messages.ardrone3.PilotingState import FlyingStateChanged, PositionChanged, SpeedChanged, AttitudeChanged, AltitudeChanged, GpsLocationChanged
+from olympe.messages.ardrone3.PilotingState import FlyingStateChanged
 from olympe.messages.ardrone3.PilotingSettings import MaxTilt, MaxDistance, MaxAltitude, NoFlyOverMaxDistance, BankedTurn
 from olympe.messages.ardrone3.PilotingSettingsState import MaxTiltChanged, MaxDistanceChanged, MaxAltitudeChanged, NoFlyOverMaxDistanceChanged, BankedTurnChanged
 from olympe.messages.ardrone3.SpeedSettings import MaxVerticalSpeed, MaxRotationSpeed, MaxPitchRollRotationSpeed
 from olympe.messages.ardrone3.SpeedSettingsState import MaxVerticalSpeedChanged, MaxRotationSpeedChanged, MaxPitchRollRotationSpeedChanged
 from olympe.messages.ardrone3.GPSSettingsState import GPSFixStateChanged
-from olympe.messages.ardrone3.GPSState import NumberOfSatelliteChanged
 from olympe.messages.piloting_style import set_style
 from olympe.messages.controller_info import validity_from_drone
 from olympe.messages.precise_home import set_mode as precise_home_set_mode
@@ -63,7 +62,7 @@ from anafi_ros_interfaces.msg import PilotingCommand, MoveByCommand, MoveToComma
 from anafi_ros_interfaces.srv import PilotedPOI, FlightPlan, FollowMe, Location, Photo, Recording, String as StringSRV
 from anafi_ros_nodes.event_listener_anafi import EventListenerAnafi
 from anafi_ros_nodes.event_listener_skycontroller import EventListenerSkyController
-from anafi_ros_nodes.utils import euler_from_quaternion, bound_percentage, bound
+from anafi_ros_nodes.utils import euler_from_quaternion, bound_percentage, quaternion_inverse, rotate_vector, rotate_quaternion
 
 logness.update_config({  # https://developer.parrot.com/docs/olympe/olympeapi.html#olympe.log.update_config
 	"handlers": {
@@ -115,6 +114,8 @@ class Anafi(Node):
 		self.pub_battery_percentage = self.node.create_publisher(UInt8, 'battery/percentage', qos_profile_system_default)
 		self.pub_state = self.node.create_publisher(String, 'drone/state', qos_profile_system_default)
 		self.pub_rpy = self.node.create_publisher(Vector3Stamped, 'drone/rpy', qos_profile_sensor_data)
+		self.pub_gimbal_attitude = self.node.create_publisher(QuaternionStamped, 'gimbal/attitude', qos_profile_sensor_data)
+		self.pub_gimbal_rpy = self.node.create_publisher(Vector3Stamped, 'gimbal/rpy', qos_profile_sensor_data)
 		self.pub_exposure_time = self.node.create_publisher(Float32, 'camera/exposure_time', qos_profile_system_default)
 		self.pub_iso_gain = self.node.create_publisher(UInt16, 'camera/iso_gain', qos_profile_system_default)
 		self.pub_awb_r_gain = self.node.create_publisher(Float32, 'camera/awb_r_gain', qos_profile_system_default)
@@ -550,7 +551,7 @@ class Anafi(Node):
 		pass
 
 	def slow_callback(self):  # slow states triggered on changes
-		self.gps_fixed = bool(self.drone.get_state(olympe.messages.ardrone3.GPSSettingsState.GPSFixStateChanged)['fixed'])  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_gps.html#olympe.messages.ardrone3.GPSSettingsState.GPSFixStateChanged
+		self.gps_fixed = bool(self.drone.get_state(GPSFixStateChanged)['fixed'])  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_gps.html#olympe.messages.ardrone3.GPSSettingsState.GPSFixStateChanged
 		self.msg_gps_fix.data = self.gps_fixed
 		self.pub_gps_fix.publish(self.msg_gps_fix)
 
@@ -809,11 +810,17 @@ class Anafi(Node):
 					self.pub_local_position.publish(self.msg_local_position)
 
 				speed = vmeta[1]['drone']['speed']  # optical flow speed (m/s)
+				v = [speed['north'], -speed['east'], -speed['down']]
+				q = quaternion_inverse([drone_quat['w'], drone_quat['x'], -drone_quat['y'], -drone_quat['z']])
+				v = rotate_vector(q, v)
 				self.msg_speed.header = self.header
 				self.msg_speed.header.frame_id = '/body'
-				self.msg_speed.vector.x =  math.cos(yaw)*speed['north'] - math.sin(yaw)*speed['east']
-				self.msg_speed.vector.y = -math.sin(yaw)*speed['north'] - math.cos(yaw)*speed['east']
-				self.msg_speed.vector.z = -speed['down']
+				self.msg_speed.vector.x = v[0]
+				self.msg_speed.vector.y = v[1]
+				self.msg_speed.vector.z = v[2]
+				#self.msg_speed.vector.x =  math.cos(yaw)*speed['north'] - math.sin(yaw)*speed['east']
+				#self.msg_speed.vector.y = -math.sin(yaw)*speed['north'] - math.cos(yaw)*speed['east']
+				#self.msg_speed.vector.z = -speed['down']
 				self.pub_speed.publish(self.msg_speed)
 
 				battery_percentage = vmeta[1]['drone']['battery_percentage']  # [0=empty, 100=full]
@@ -822,6 +829,23 @@ class Anafi(Node):
 				if battery_percentage%10 == 0:
 					self.node.get_logger().info("Battery level: %s%%" % str(battery_percentage), throttle_duration_sec=100)
 
+				gimbal_quat = vmeta[1]['camera']['quat']  # gimbal absolute attitude
+				self.msg_attitude.header = self.header
+				self.msg_attitude.header.frame_id = '/world'
+				self.msg_attitude.quaternion.x = gimbal_quat['x']
+				self.msg_attitude.quaternion.y = -gimbal_quat['y']
+				self.msg_attitude.quaternion.z = -gimbal_quat['z']
+				self.msg_attitude.quaternion.w = gimbal_quat['w']
+				self.pub_gimbal_attitude.publish(self.msg_attitude)
+
+				(gimbal_roll, gimbal_pitch, gimbal_yaw) = euler_from_quaternion(self.msg_attitude.quaternion)
+				self.msg_rpy.header = self.header
+				self.msg_rpy.header.frame_id = '/world'
+				self.msg_rpy.vector.x = math.degrees(gimbal_roll)
+				self.msg_rpy.vector.y = math.degrees(gimbal_pitch)
+				self.msg_rpy.vector.z = math.degrees(gimbal_yaw)
+				self.pub_gimbal_rpy.publish(self.msg_rpy)
+				
 				self.msg_exposure_time.data = vmeta[1]['camera']['exposure_time']
 				self.pub_exposure_time.publish(self.msg_exposure_time)
 
@@ -896,6 +920,19 @@ class Anafi(Node):
 				self.msg_camera_info.header = self.header
 				self.msg_camera_info.header.frame_id = '/camera'
 				self.pub_camera_info.publish(self.msg_camera_info)
+
+				# v = [0, 1, 0]
+				# q_drone_world = [drone_quat['w'], drone_quat['x'], -drone_quat['y'], -drone_quat['z']]
+				# q_gimbal_world = [gimbal_quat['w'], gimbal_quat['x'], -gimbal_quat['y'], -gimbal_quat['z']]
+				# q_world_gimbal = quaternion_inverse(q_gimbal_world)
+				# q_gimbal_camera = rotate_quaternion(
+				# 	[0.7071, 0.0, -0.7071, 0.0],
+				# 	[0.7071, 0.7071, 0.0, 0.0])
+				# print("****** q_gimbal_camera: ", q_gimbal_camera)
+				# v_world = rotate_vector(q_drone_world, v)
+				# v_gimbal = rotate_vector(q_world_gimbal, v_world)
+				# v_camera = rotate_vector(q_gimbal_camera, v_gimbal)
+				# print("****** v_camera: ", v_camera)
 			else:
 				self.node.get_logger().warning("Frame lost!")
 

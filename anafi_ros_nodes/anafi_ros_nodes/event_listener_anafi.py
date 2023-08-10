@@ -10,57 +10,28 @@ from sensor_msgs.msg import NavSatFix
 from rclpy.qos import qos_profile_system_default, qos_profile_sensor_data
 
 from olympe.messages.ardrone3.SettingsState import MotorErrorStateChanged
-from olympe.messages.drone_manager import authentication_failed, connection_refused
+from olympe.messages.drone_manager import authentication_failed, connection_refused, connection_state
 from olympe.enums.ardrone3.SettingsState import MotorErrorStateChanged_MotorError
-from olympe.messages.battery import alert as battery_alert
+from olympe.messages.battery import alert as battery_alert, voltage
 from olympe.enums.battery import alert_level
-from olympe.messages.gimbal import alert as gimbal_alert
+from olympe.messages.gimbal import alert as gimbal_alert, calibration_result, calibration_state, attitude as gimbal_attitude
 from olympe.enums import gimbal
-from olympe.messages.user_storage import format_result
-from olympe.enums.user_storage import formatting_result
-from olympe.messages.ardrone3.PilotingState import AlertStateChanged
-from olympe.enums.ardrone3.PilotingState import AlertStateChanged_State
-from olympe.messages.ardrone3.PilotingState import ForcedLandingAutoTrigger
-from olympe.enums.ardrone3.PilotingState import ForcedLandingAutoTrigger_Reason
-from olympe.messages.ardrone3.PilotingState import HoveringWarning
-from olympe.messages.ardrone3.PilotingState import VibrationLevelChanged
-from olympe.enums.ardrone3.PilotingState import VibrationLevelChanged_State
-from olympe.messages.ardrone3.PilotingState import WindStateChanged
-from olympe.enums.ardrone3.PilotingState import WindStateChanged_State
-from olympe.messages.ardrone3.GPSSettingsState import HomeChanged
-from olympe.messages.common.CommonState import LinkSignalQuality
-from olympe.messages.common.CommonState import MassStorageInfoStateListChanged
-from olympe.messages.common.CommonState import SensorsStatesListChanged
-from olympe.messages.rth import home_reachability as home_reachability_message
-from olympe.enums.rth import home_reachability as home_reachability_enum
-from olympe.messages.rth import rth_auto_trigger
-from olympe.enums.rth import auto_trigger_reason
-from olympe.messages.ardrone3.PilotingState import NavigateHomeStateChanged
-from olympe.messages.common.MavlinkState import MavlinkFilePlayingStateChanged
-from olympe.messages.common.MavlinkState import MissionItemExecuted
-from olympe.messages.drone_manager import connection_state
-from olympe.messages.follow_me import state as follow_me_state
-from olympe.enums.follow_me import mode
-from olympe.messages.gimbal import calibration_result
-from olympe.messages.move import info as move_info
-from olympe.messages.rth import state as rth_state
-from olympe.messages.user_storage import format_progress
-from olympe.messages.user_storage import info as user_storage_info
-from olympe.messages.user_storage import monitor as user_storage_monitor
+from olympe.messages.user_storage import format_result, format_progress, info as user_storage_info, monitor as user_storage_monitor
 from olympe.messages.user_storage_v2 import monitor as user_storage_monitor2
-from olympe.messages.gimbal import calibration_state
+from olympe.enums.user_storage import formatting_result
+from olympe.messages.ardrone3.PilotingState import AltitudeChanged, AttitudeChanged, GpsLocationChanged, AlertStateChanged, ForcedLandingAutoTrigger, HoveringWarning, VibrationLevelChanged, WindStateChanged, NavigateHomeStateChanged
+from olympe.enums.ardrone3.PilotingState import AlertStateChanged_State, ForcedLandingAutoTrigger_Reason, VibrationLevelChanged_State, WindStateChanged_State
+from olympe.messages.ardrone3.GPSSettingsState import HomeChanged
+from olympe.messages.common.CommonState import LinkSignalQuality, MassStorageInfoStateListChanged, SensorsStatesListChanged
+from olympe.messages.rth import home_reachability as home_reachability_message, rth_auto_trigger, state as rth_state
+from olympe.enums.rth import home_reachability as home_reachability_enum, auto_trigger_reason 
+from olympe.messages.common.MavlinkState import MavlinkFilePlayingStateChanged, MissionItemExecuted
+from olympe.messages.follow_me import state as follow_me_state, target_trajectory
+from olympe.enums.follow_me import mode
+from olympe.messages.move import info as move_info
 from olympe.messages.camera import zoom_level
 from olympe.messages.camera2.Event import ZoomLevel as zoom_level2
 from olympe.messages.ardrone3.GPSState import NumberOfSatelliteChanged
-from olympe.messages.ardrone3.PilotingState import AltitudeChanged
-from olympe.messages.ardrone3.PilotingState import AttitudeChanged
-from olympe.messages.ardrone3.PilotingState import GpsLocationChanged
-from olympe.messages.battery import voltage
-from olympe.messages.follow_me import target_trajectory
-from olympe.messages.gimbal import attitude as gimbal_attitude
-from olympe.messages.battery import health
-
-
 
 from anafi_ros_interfaces.msg import TargetTrajectory
 
@@ -95,14 +66,14 @@ class EventListenerAnafi(olympe.EventListener):
 		self.pub_gps_location = self.drone.node.create_publisher(NavSatFix, 'drone/gps/location', qos_profile_sensor_data)
 		self.pub_battery_voltage = self.drone.node.create_publisher(Float32, 'battery/voltage', qos_profile_system_default)
 		self.pub_target_trajectory = self.drone.node.create_publisher(TargetTrajectory, 'target/trajectory', qos_profile_system_default)
-		self.pub_gimbal_relative = self.drone.node.create_publisher(Vector3Stamped, 'gimbal/attitude/relative', qos_profile_sensor_data)
-		self.pub_gimbal_absolute = self.drone.node.create_publisher(Vector3Stamped, 'gimbal/attitude/absolute', qos_profile_sensor_data)
+		self.pub_gimbal_relative = self.drone.node.create_publisher(Vector3Stamped, 'gimbal/rpy_slow/relative', qos_profile_sensor_data)
+		self.pub_gimbal_absolute = self.drone.node.create_publisher(Vector3Stamped, 'gimbal/rpy_slow/absolute', qos_profile_sensor_data)
 		self.pub_storage_available = self.drone.node.create_publisher(UInt64, 'storage/available', qos_profile_system_default)
 		self.pub_home_location = self.drone.node.create_publisher(PointStamped, 'home/location', qos_profile_system_default)  # TODO: change to Location message
 
 		self.msg_zoom = Float32()
 		self.msg_gps_satellites = UInt8()
-		self.msg_altitude_above_to = Float32()
+		self.msg_altitude = Float32()
 		self.msg_attitude = Vector3Stamped()
 		self.msg_gps_location = NavSatFix()
 		self.msg_battery_voltage = Float32()
@@ -319,9 +290,9 @@ class EventListenerAnafi(olympe.EventListener):
 
 	@olympe.listen_event(AltitudeChanged(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.PilotingState.AltitudeChanged
 	def onAltitudeChanged(self, event, scheduler):
-		self.msg_altitude_above_to.data = event.args['altitude']
-		self.pub_altitude_above_to.publish(self.msg_altitude_above_to)
-
+		self.msg_altitude.data = event.args['altitude']
+		self.pub_altitude_above_to.publish(self.msg_altitude)
+		
 	@olympe.listen_event(AttitudeChanged(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.PilotingState.AttitudeChanged
 	def onAttitudeChanged(self, event, scheduler):  # publishes at lower rate (5Hz) than 'pub_rpy' (30Hz) but has higher reaction time (approx. 100ms faster)
 		attitude = event.args
@@ -400,7 +371,6 @@ class EventListenerAnafi(olympe.EventListener):
 		self.msg_gimbal.vector.x = gimbal['roll_relative']
 		self.msg_gimbal.vector.y = -gimbal['pitch_relative']
 		self.msg_gimbal.vector.z = -gimbal['yaw_relative']
-		#print("roll: " + str(gimbal['roll_frame_of_reference']) + ", pitch: " + str(gimbal['pitch_frame_of_reference']) + ", yaw: " + str(gimbal['yaw_frame_of_reference']))
 		self.pub_gimbal_relative.publish(self.msg_gimbal)
 
 	@olympe.listen_event(user_storage_monitor(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_user_storage.html#olympe.messages.user_storage.monitor
