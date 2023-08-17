@@ -50,13 +50,13 @@ def quaternion_from_euler(roll, pitch, yaw):
     cr = math.cos(roll * 0.5)
     sr = math.sin(roll * 0.5)
 
-    q = [0] * 4
-    q[0] = cy * cp * cr + sy * sp * sr
-    q[1] = cy * cp * sr - sy * sp * cr
-    q[2] = sy * cp * sr + cy * sp * cr
-    q[3] = sy * cp * cr - cy * sp * sr
+    quaternion = [0] * 4
+    quaternion.x = cy * cp * cr + sy * sp * sr
+    quaternion.y = cy * cp * sr - sy * sp * cr
+    quaternion.z = sy * cp * sr + cy * sp * cr
+    quaternion.w = sy * cp * cr - cy * sp * sr
 
-    return q
+    return quaternion
 
 # https://github.com/cgohlke/transformations/blob/master/transformations/transformations.py#L1445
 def quaternion_multiply(quaternion1, quaternion0):

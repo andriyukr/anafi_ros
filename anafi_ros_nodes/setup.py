@@ -27,6 +27,7 @@ setup(
         'console_scripts': [
         	'anafi = anafi_ros_nodes.anafi:main',
         	'test_anafi = anafi_ros_nodes.test_anafi:main',
+        	'sphinx = anafi_ros_nodes.sphinx:main',
         ],
     },
 )

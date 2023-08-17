@@ -920,19 +920,6 @@ class Anafi(Node):
 				self.msg_camera_info.header = self.header
 				self.msg_camera_info.header.frame_id = '/camera'
 				self.pub_camera_info.publish(self.msg_camera_info)
-
-				# v = [0, 1, 0]
-				# q_drone_world = [drone_quat['w'], drone_quat['x'], -drone_quat['y'], -drone_quat['z']]
-				# q_gimbal_world = [gimbal_quat['w'], gimbal_quat['x'], -gimbal_quat['y'], -gimbal_quat['z']]
-				# q_world_gimbal = quaternion_inverse(q_gimbal_world)
-				# q_gimbal_camera = rotate_quaternion(
-				# 	[0.7071, 0.0, -0.7071, 0.0],
-				# 	[0.7071, 0.7071, 0.0, 0.0])
-				# print("****** q_gimbal_camera: ", q_gimbal_camera)
-				# v_world = rotate_vector(q_drone_world, v)
-				# v_gimbal = rotate_vector(q_world_gimbal, v_world)
-				# v_camera = rotate_vector(q_gimbal_camera, v_gimbal)
-				# print("****** v_camera: ", v_camera)
 			else:
 				self.node.get_logger().warning("Frame lost!")
 
