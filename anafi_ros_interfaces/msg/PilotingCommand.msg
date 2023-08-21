@@ -1,5 +1,5 @@
-std_msgs/Header header 	# message header
-float32 roll		# roll angle [deg]
-float32 pitch		# pitch angle [deg]
-float32 yaw		# yaw rate [deg/s]
-float32 gaz		# vertical velocity [m/s]
+std_msgs/Header header 		# message header
+float32 	roll	0	# roll angle [deg]
+float32 	pitch 	0	# pitch angle [deg]
+float32 	yaw	0	# yaw rate [deg/s]
+float32 	gaz	0	# vertical velocity [m/s]

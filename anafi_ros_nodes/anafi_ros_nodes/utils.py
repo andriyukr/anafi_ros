@@ -51,10 +51,10 @@ def quaternion_from_euler(roll, pitch, yaw):
     sr = math.sin(roll * 0.5)
 
     quaternion = [0] * 4
-    quaternion.x = cy * cp * cr + sy * sp * sr
-    quaternion.y = cy * cp * sr - sy * sp * cr
-    quaternion.z = sy * cp * sr + cy * sp * cr
-    quaternion.w = sy * cp * cr - cy * sp * sr
+    quaternion[0] = cy * cp * cr + sy * sp * sr
+    quaternion[1] = cy * cp * sr - sy * sp * cr
+    quaternion[2] = sy * cp * sr + cy * sp * cr
+    quaternion[3] = sy * cp * cr - cy * sp * sr
 
     return quaternion
 

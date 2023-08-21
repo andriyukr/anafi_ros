@@ -209,12 +209,6 @@ class EventListenerAnafi(olympe.EventListener):
 	"""
 	INFO
 	"""
-	@olympe.listen_event(NavigateHomeStateChanged(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.PilotingState.NavigateHomeStateChanged
-	def onNavigateHomeStateChanged(self, event, scheduler):
-		navigate_home_state = event.args
-		self.drone.node.get_logger().info("Navigate Home State: state = %s, reason = %s" %
-									(navigate_home_state['state'].name, navigate_home_state['reason'].name))
-
 	@olympe.listen_event(MavlinkFilePlayingStateChanged(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_common_mavlink.html#olympe.messages.common.MavlinkState.MavlinkFilePlayingStateChanged
 	def onMissionItemExecuted(self, event, scheduler):
 		self.drone.node.get_logger().info('FlightPlan state is %s' % event.args['state'].name)  # https://developer.parrot.com/docs/olympe/arsdkng_common_mavlink.html#olympe.messages.common.MavlinkState.MavlinkFilePlayingStateChanged
@@ -241,11 +235,6 @@ class EventListenerAnafi(olympe.EventListener):
 		move_info = event.args
 		self.drone.node.get_logger().info('Move info: ' + str(move_info))
 
-	@olympe.listen_event(rth_state(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_rth.html#olympe.messages.rth.state
-	def onRTHState(self, event, scheduler):
-		state = event.args
-		self.drone.node.get_logger().info('RTH: state=%s, reason=%s' % (state['state'].name, state['reason'].name))
-
 	@olympe.listen_event(format_progress(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_user_storage.html#olympe.messages.user_storage.format_progress
 	def onFormatProgress(self, event, scheduler):
 		format_progress = event.args
@@ -261,6 +250,17 @@ class EventListenerAnafi(olympe.EventListener):
 	""" 
 	DEBUG  
 	"""
+	@olympe.listen_event(NavigateHomeStateChanged(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.PilotingState.NavigateHomeStateChanged
+	def onNavigateHomeStateChanged(self, event, scheduler):
+		navigate_home_state = event.args
+		self.drone.node.get_logger().debug("Navigate Home State: state = %s, reason = %s" %
+									(navigate_home_state['state'].name, navigate_home_state['reason'].name))
+
+	@olympe.listen_event(rth_state(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_rth.html#olympe.messages.rth.state
+	def onRTHState(self, event, scheduler):
+		state = event.args
+		self.drone.node.get_logger().debug('RTH: state=%s, reason=%s' % (state['state'].name, state['reason'].name))
+
 	@olympe.listen_event(calibration_state(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_gimbal.html#olympe.messages.gimbal.calibration_state
 	def onGimbalCalibrationState(self, event, scheduler):
 		calibration_state = event.args
@@ -386,7 +386,7 @@ class EventListenerAnafi(olympe.EventListener):
 	@olympe.listen_event(HomeChanged(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_gps.html#olympe.messages.ardrone3.GPSSettingsState.HomeChanged
 	def onHomeChanged(self, event, scheduler):
 		home = event.args
-		self.drone.node.get_logger().info('home: ' + str(home))
+		self.drone.node.get_logger().info('Home: ' + str(home))
 		if home['latitude'] != 500 and home['longitude'] != 500 and home['altitude'] != 500:
 			self.msg_home_location.header.stamp = self.drone.node.get_clock().now().to_msg()
 			self.msg_home_location.header.frame_id = '/world'

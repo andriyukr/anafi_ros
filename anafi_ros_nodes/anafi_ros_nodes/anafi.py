@@ -927,7 +927,7 @@ class Anafi(Node):
 
 	def takeoff_callback(self, request, response):
 		self.node.get_logger().warning("Taking off")
-		self.drone(TakeOff()).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.Piloting.TakeOff
+		self.drone(TakeOff())  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.Piloting.TakeOff
 		if not self.simulation_environment:
 			run_id = self.drone.get_state(olympe.messages.common.RunState.RunIdChanged) # https://developer.parrot.com/docs/olympe/arsdkng_common_runstate.html#olympe.messages.common.RunState.RunIdChanged
 			self.node.get_logger().debug('Run Id: %s' % (run_id['runId']))
@@ -947,9 +947,7 @@ class Anafi(Node):
 
 	def land_callback(self, request, response):
 		self.node.get_logger().info("Landing")
-		self.drone(Landing()).wait() # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.Piloting.Landing
-		flights_status = self.drone.get_state(olympe.messages.ardrone3.SettingsState.MotorFlightsStatusChanged) # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_settings_state.html#olympe.messages.ardrone3.SettingsState.MotorErrorStateChanged
-		self.node.get_logger().info('Flight duration = %is' % (flights_status['lastFlightDuration']))
+		self.drone(Landing()) # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.Piloting.Landing
 		return response
 		
 	def emergency_callback(self, request, response):

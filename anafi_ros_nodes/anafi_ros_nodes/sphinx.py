@@ -28,7 +28,7 @@ class Sphinx(Node):
 		self.msg_pose = PoseStamped()
 
 		# Parameters from the launch file
-		self.drone_name = self.node.declare_parameter('drone_name', 'anafi1').value
+		self.drone_name = self.node.declare_parameter('drone_name', 'anafi').value
 		self.node.get_logger().info('Drone name: ' + self.drone_name)
 
 		self.sphinx = pysphinx.Sphinx(ip="127.0.0.1", port=8383)
@@ -38,36 +38,26 @@ class Sphinx(Node):
 		if machine_names is None:
 			self.node.get_logger().fatal("Sphinx is not running")
 			exit()
-
-		self.node.get_logger().info("Available drones: " + str(machine_names))
 		
 		if self.drone_name not in machine_names:
 			self.node.get_logger().fatal(self.drone_name + " does not exist in Sphinx")
 			self.node.get_logger().info("Available drones: " + str(machine_names))
 			exit()
 
-
-		self.node.get_logger().fatal("OK1")
-
-		pose = self.sphinx.get_drone_pose(machine_name="anafi")
-		self.node.get_logger().fatal(pose)
-
-		self.timer_fast = self.node.create_timer(1, self.pose_callback)
-
-		self.node.get_logger().fatal("OK2")
+		self.timer_fast = self.node.create_timer(0.001, self.pose_callback)
 		
 	def pose_callback(self):
-		self.node.get_logger().fatal("OK3")
 		pose = self.sphinx.get_drone_pose(machine_name=self.drone_name)  # https://developer.parrot.com/docs/sphinx/pysphinxapi.html#pysphinx.Sphinx.get_drone_pose
-		self.node.get_logger().fatal("OK4")
-		quaternion = quaternion_from_euler(pose(3), pose(4), pose(5))
-		self.node.get_logger().fatal("OK5")
+		quaternion = quaternion_from_euler(pose[3], pose[4], pose[5])
 		self.msg_pose.header.stamp = self.node.get_clock().now().to_msg()
 		self.msg_pose.header.frame_id = '/world'
-		self.msg_pose.pose.position.x = pose(0)
-		self.msg_pose.pose.position.y = pose(1)
-		self.msg_pose.pose.position.z = pose(2)
-		self.msg_pose.pose.orientation = quaternion
+		self.msg_pose.pose.position.x = pose[0]
+		self.msg_pose.pose.position.y = pose[1]
+		self.msg_pose.pose.position.z = pose[2]
+		self.msg_pose.pose.orientation.x = quaternion[0]
+		self.msg_pose.pose.orientation.y = quaternion[1]
+		self.msg_pose.pose.orientation.z = quaternion[2]
+		self.msg_pose.pose.orientation.w = quaternion[3]
 		self.pub_pose.publish(self.msg_pose)
 
 	def move_callback(self, msg):
