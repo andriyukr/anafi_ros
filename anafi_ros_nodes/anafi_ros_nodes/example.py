@@ -41,8 +41,10 @@ class Example(Node):
 		self.time = Time(seconds=0.0)
 		self.initial_time = Time(seconds=0.0)
 
+		# Timer
 		self.timer = self.node.create_timer(0.1, self.on_timer)
-		
+	
+	# Timer callback
 	def on_timer(self):
 		if self.time < self.initial_time + Duration(seconds=1.0):
 			self.node.get_logger().info("Waiting for take-off time...", throttle_duration_sec=1.0)
@@ -66,11 +68,13 @@ class Example(Node):
 			self.node.get_logger().info("The mission is over", throttle_duration_sec=1.0)
 			exit()
 
+	# GPS subscriber callback
 	def gps_callback(self, msg):
 		self.time = Time.from_msg(msg.header.stamp)
 		if self.initial_time.nanoseconds == 0:
 			self.initial_time = self.time
 	
+	# Drone state subscriber callback
 	def drone_state_callback(self, msg):
 		self.drone_state = msg.data
 

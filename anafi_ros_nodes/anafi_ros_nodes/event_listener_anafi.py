@@ -71,17 +71,6 @@ class EventListenerAnafi(olympe.EventListener):
 		self.pub_storage_available = self.drone.node.create_publisher(UInt64, 'storage/available', qos_profile_system_default)
 		self.pub_home_location = self.drone.node.create_publisher(PointStamped, 'home/location', qos_profile_system_default)  # TODO: change to Location message
 
-		self.msg_zoom = Float32()
-		self.msg_gps_satellites = UInt8()
-		self.msg_altitude = Float32()
-		self.msg_attitude = Vector3Stamped()
-		self.msg_gps_location = NavSatFix()
-		self.msg_battery_voltage = Float32()
-		self.msg_trajectory = TargetTrajectory()
-		self.msg_gimbal = Vector3Stamped()
-		self.msg_storage_available = UInt64()
-		self.msg_home_location = PointStamped()
-
 	""" 
 	FATAL ERRORS 
 	"""
@@ -89,8 +78,8 @@ class EventListenerAnafi(olympe.EventListener):
 	def onMotorErrorStateChanged(self, event, scheduler):
 		motor_error = event.args
 		if motor_error['motorError'] is not MotorErrorStateChanged_MotorError.noError: # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_settings_state.html#olympe.enums.ardrone3.SettingsState.MotorErrorStateChanged_MotorError
-			self.drone.node.get_logger().fatal('Motor Error: motors = %s, error = %s' %
-										 (show_motors(motor_error['motorIds']), motor_error['motorError'].name))
+			self.drone.node.get_logger().fatal('Motor Error: motors = %s, error = %s' % 
+				    (show_motors(motor_error['motorIds']), motor_error['motorError'].name))
 
 	@olympe.listen_event(authentication_failed(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_drone_manager.html#olympe.messages.drone_manager.authentication_failed
 	def onAuthenticationFailed(self, event, scheduler):
@@ -275,125 +264,139 @@ class EventListenerAnafi(olympe.EventListener):
 	"""
 	@olympe.listen_event(zoom_level(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.messages.camera.zoom_level
 	def onZoomLevel(self, event, scheduler):  # for ANAFI 4K, Thermal, USA 
-		self.msg_zoom.data = event.args['level']
-		self.pub_zoom.publish(self.msg_zoom)
+		msg_zoom = Float32()
+		msg_zoom.data = event.args['level']
+		self.pub_zoom.publish(msg_zoom)
 		
 	@olympe.listen_event(zoom_level2(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_camera_v2.html#olympe.messages.camera2.Event.ZoomLevel
 	def onZoomLevel2(self, event, scheduler):  # for ANAFI Ai
-		self.msg_zoom.data = event.args['level']
-		self.pub_zoom.publish(self.msg_zoom)
+		msg_zoom = Float32()
+		msg_zoom.data = event.args['level']
+		self.pub_zoom.publish(msg_zoom)
 
 	@olympe.listen_event(NumberOfSatelliteChanged(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_gps.html#olympe.messages.ardrone3.GPSState.NumberOfSatelliteChanged
 	def onNumberOfSatelliteChanged(self, event, scheduler):
-		self.msg_gps_satellites.data = event.args['numberOfSatellite']
-		self.pub_gps_satellites.publish(self.msg_gps_satellites)
+		msg_gps_satellites = UInt8()
+		msg_gps_satellites.data = event.args['numberOfSatellite']
+		self.pub_gps_satellites.publish(msg_gps_satellites)
 
 	@olympe.listen_event(AltitudeChanged(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.PilotingState.AltitudeChanged
 	def onAltitudeChanged(self, event, scheduler):
-		self.msg_altitude.data = event.args['altitude']
-		self.pub_altitude_above_to.publish(self.msg_altitude)
+		msg_altitude = Float32()
+		msg_altitude.data = event.args['altitude']
+		self.pub_altitude_above_to.publish(msg_altitude)
 		
 	@olympe.listen_event(AttitudeChanged(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.PilotingState.AttitudeChanged
 	def onAttitudeChanged(self, event, scheduler):  # publishes at lower rate (5Hz) than 'pub_rpy' (30Hz) but has higher reaction time (approx. 100ms faster)
 		attitude = event.args
-		self.msg_attitude.header.stamp = self.drone.node.get_clock().now().to_msg()
-		self.msg_attitude.header.frame_id = '/world'
-		self.msg_attitude.vector.x = attitude['roll']*180/math.pi
-		self.msg_attitude.vector.y = -attitude['pitch']*180/math.pi
-		self.msg_attitude.vector.z = -attitude['yaw']*180/math.pi
-		self.pub_rpy_slow.publish(self.msg_attitude)
+		msg_attitude = Vector3Stamped()
+		msg_attitude.header.stamp = self.drone.node.get_clock().now().to_msg()
+		msg_attitude.header.frame_id = '/world'
+		msg_attitude.vector.x = attitude['roll']*180/math.pi
+		msg_attitude.vector.y = -attitude['pitch']*180/math.pi
+		msg_attitude.vector.z = -attitude['yaw']*180/math.pi
+		self.pub_rpy_slow.publish(msg_attitude)
 
 	@olympe.listen_event(GpsLocationChanged(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.PilotingState.GpsLocationChanged
 	def onGpsLocationChanged(self, event, scheduler):
 		gps_location = event.args
-		self.msg_gps_location.header.stamp = self.drone.node.get_clock().now().to_msg()
-		self.msg_gps_location.header.frame_id = '/world'
-		self.msg_gps_location.status.status = \
-			(self.msg_gps_location.status.STATUS_FIX
+		msg_gps_location = NavSatFix()
+		msg_gps_location.header.stamp = self.drone.node.get_clock().now().to_msg()
+		msg_gps_location.header.frame_id = '/world'
+		msg_gps_location.status.status = \
+			(msg_gps_location.status.STATUS_FIX
 			 if self.drone.gps_fixed
-			 else self.msg_gps_location.status.STATUS_NO_FIX) # https://docs.ros.org/en/api/sensor_msgs/html/msg/NavSatStatus.html
+			 else msg_gps_location.status.STATUS_NO_FIX) # https://docs.ros.org/en/api/sensor_msgs/html/msg/NavSatStatus.html
 		if self.drone.model == "4k" or self.drone.model == "thermal":
-			self.msg_gps_location.status.service = \
-				self.msg_gps_location.status.SERVICE_GPS + \
-				self.msg_gps_location.status.SERVICE_GLONASS
+			msg_gps_location.status.service = \
+				msg_gps_location.status.SERVICE_GPS + \
+				msg_gps_location.status.SERVICE_GLONASS
 		if self.drone.model == "usa" or self.drone.model == "ai":
-			self.msg_gps_location.status.service = \
-				self.msg_gps_location.status.SERVICE_GPS + \
-				self.msg_gps_location.status.SERVICE_GLONASS + \
-				self.msg_gps_location.status.SERVICE_GALILEO
-		self.msg_gps_location.latitude = gps_location['latitude']
-		self.msg_gps_location.longitude = gps_location['longitude']
-		self.msg_gps_location.altitude = gps_location['altitude']
-		self.msg_gps_location.position_covariance[0] = \
+			msg_gps_location.status.service = \
+				msg_gps_location.status.SERVICE_GPS + \
+				msg_gps_location.status.SERVICE_GLONASS + \
+				msg_gps_location.status.SERVICE_GALILEO
+		msg_gps_location.latitude = gps_location['latitude']
+		msg_gps_location.longitude = gps_location['longitude']
+		msg_gps_location.altitude = gps_location['altitude']
+		msg_gps_location.position_covariance[0] = \
 			(math.sqrt(gps_location['latitude_accuracy'])
 			 if gps_location['latitude_accuracy'] > 0
 			 else gps_location['latitude_accuracy'])
-		self.msg_gps_location.position_covariance[4] = \
+		msg_gps_location.position_covariance[4] = \
 			(math.sqrt(gps_location['longitude_accuracy'])
 			 if gps_location['longitude_accuracy'] > 0
 			 else gps_location['longitude_accuracy'])
-		self.msg_gps_location.position_covariance[8] = \
+		msg_gps_location.position_covariance[8] = \
 			(math.sqrt(gps_location['altitude_accuracy'])
 			 if gps_location['altitude_accuracy'] > 0
 			 else gps_location['altitude_accuracy'])
-		self.msg_gps_location.position_covariance_type = self.msg_gps_location.COVARIANCE_TYPE_DIAGONAL_KNOWN
-		self.pub_gps_location.publish(self.msg_gps_location)
+		msg_gps_location.position_covariance_type = msg_gps_location.COVARIANCE_TYPE_DIAGONAL_KNOWN
+		self.pub_gps_location.publish(msg_gps_location)
 
 	@olympe.listen_event(voltage(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_battery.html#olympe.messages.battery.voltage
 	def onBatteryVoltage(self, event, scheduler):
-		self.msg_battery_voltage.data = event.args['voltage']/1000
-		self.pub_battery_voltage.publish(self.msg_battery_voltage)
+		msg_battery_voltage = Float32()
+		msg_battery_voltage.data = event.args['voltage']/1000
+		self.pub_battery_voltage.publish(msg_battery_voltage)
 
 	@olympe.listen_event(target_trajectory(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_followme.html#olympe.messages.follow_me.target_trajectory
 	def onTargetTrajectory(self, event, scheduler):
 		trajectory = event.args
 		self.drone.node.get_logger().info('target_trajectory: ' + str(trajectory))
-		self.msg_trajectory.header.stamp = self.drone.node.get_clock().now().to_msg()
-		self.msg_trajectory.header.frame_id = '/world'
-		self.msg_trajectory.latitude = trajectory['latitude']
-		self.msg_trajectory.longitude = trajectory['longitude']
-		self.msg_trajectory.altitude = trajectory['altitude']
-		self.msg_trajectory.north_speed = trajectory['north_speed']
-		self.msg_trajectory.east_speed = trajectory['east_speed']
-		self.msg_trajectory.down_speed = trajectory['down_speed']
-		self.pub_target_trajectory.publish(self.msg_trajectory)
+		msg_trajectory = TargetTrajectory()
+		msg_trajectory.header.stamp = self.drone.node.get_clock().now().to_msg()
+		msg_trajectory.header.frame_id = '/world'
+		msg_trajectory.latitude = trajectory['latitude']
+		msg_trajectory.longitude = trajectory['longitude']
+		msg_trajectory.altitude = trajectory['altitude']
+		msg_trajectory.north_speed = trajectory['north_speed']
+		msg_trajectory.east_speed = trajectory['east_speed']
+		msg_trajectory.down_speed = trajectory['down_speed']
+		self.pub_target_trajectory.publish(msg_trajectory)
 
 	@olympe.listen_event(gimbal_attitude(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_gimbal.html#olympe.messages.gimbal.attitude
 	def onGimbalAttitude(self, event, scheduler):
 		gimbal = event.args
-		self.msg_gimbal.header.stamp = self.drone.node.get_clock().now().to_msg()
-		self.msg_gimbal.header.frame_id = '/world'
-		self.msg_gimbal.vector.x = gimbal['roll_absolute']
-		self.msg_gimbal.vector.y = -gimbal['pitch_absolute']
-		self.msg_gimbal.vector.z = -gimbal['yaw_absolute']
-		self.pub_gimbal_absolute.publish(self.msg_gimbal)
-		self.msg_gimbal.header.frame_id = '/body'
-		self.msg_gimbal.vector.x = gimbal['roll_relative']
-		self.msg_gimbal.vector.y = -gimbal['pitch_relative']
-		self.msg_gimbal.vector.z = -gimbal['yaw_relative']
-		self.pub_gimbal_relative.publish(self.msg_gimbal)
+		msg_gimbal = Vector3Stamped()
+		msg_gimbal.header.stamp = self.drone.node.get_clock().now().to_msg()
+
+		msg_gimbal.header.frame_id = '/world'
+		msg_gimbal.vector.x = gimbal['roll_absolute']
+		msg_gimbal.vector.y = -gimbal['pitch_absolute']
+		msg_gimbal.vector.z = -gimbal['yaw_absolute']
+		self.pub_gimbal_absolute.publish(msg_gimbal)
+
+		msg_gimbal.header.frame_id = '/body'
+		msg_gimbal.vector.x = gimbal['roll_relative']
+		msg_gimbal.vector.y = -gimbal['pitch_relative']
+		msg_gimbal.vector.z = -gimbal['yaw_relative']
+		self.pub_gimbal_relative.publish(msg_gimbal)
 
 	@olympe.listen_event(user_storage_monitor(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_user_storage.html#olympe.messages.user_storage.monitor
 	def onUserStorageMonitor(self, event, scheduler):  # for ANAFI 4K, Thermal, USA
-		self.msg_storage_available.data = event.args['available_bytes']
-		self.pub_storage_available.publish(self.msg_storage_available)
+		msg_storage_available = UInt64()
+		msg_storage_available.data = event.args['available_bytes']
+		self.pub_storage_available.publish(msg_storage_available)
 		
 	@olympe.listen_event(user_storage_monitor2(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_user_storage_v2.html#olympe.messages.user_storage_v2.monitor
 	def onUserStorageMonitor2(self, event, scheduler):  # for ANAFI Ai
-		self.msg_storage_available.data = event.args['available_bytes']
-		self.pub_storage_available.publish(self.msg_storage_available)
+		msg_storage_available = UInt64()
+		msg_storage_available.data = event.args['available_bytes']
+		self.pub_storage_available.publish(msg_storage_available)
 
 	@olympe.listen_event(HomeChanged(_policy="wait"))  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_gps.html#olympe.messages.ardrone3.GPSSettingsState.HomeChanged
 	def onHomeChanged(self, event, scheduler):
 		home = event.args
 		self.drone.node.get_logger().info('Home: ' + str(home))
 		if home['latitude'] != 500 and home['longitude'] != 500 and home['altitude'] != 500:
-			self.msg_home_location.header.stamp = self.drone.node.get_clock().now().to_msg()
-			self.msg_home_location.header.frame_id = '/world'
-			self.msg_home_location.point.x = home['latitude']
-			self.msg_home_location.point.y = home['longitude']
-			self.msg_home_location.point.z = home['altitude']
-			self.pub_home_location.publish(self.msg_home_location)
+			msg_home_location = PointStamped()
+			msg_home_location.header.stamp = self.drone.node.get_clock().now().to_msg()
+			msg_home_location.header.frame_id = '/world'
+			msg_home_location.point.x = home['latitude']
+			msg_home_location.point.y = home['longitude']
+			msg_home_location.point.z = home['altitude']
+			self.pub_home_location.publish(msg_home_location)
 
 	""" 
 	All other events
