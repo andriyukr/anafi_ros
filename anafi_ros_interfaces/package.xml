@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package format="3">
 	<name>anafi_ros_interfaces</name>
-	<version>0.3.0</version>
+	<version>0.3.1</version>
 	<description>The anafi_ros_interfaces package</description>
 
 	<maintainer email="andriy.sarabakha@ntu.edu.sg">Andriy Sarabakha</maintainer>

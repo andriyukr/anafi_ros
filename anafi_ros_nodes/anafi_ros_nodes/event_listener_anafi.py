@@ -316,21 +316,26 @@ class EventListenerAnafi(olympe.EventListener):
 				msg_gps_location.status.SERVICE_GPS + \
 				msg_gps_location.status.SERVICE_GLONASS + \
 				msg_gps_location.status.SERVICE_GALILEO
-		msg_gps_location.latitude = gps_location['latitude']
-		msg_gps_location.longitude = gps_location['longitude']
-		msg_gps_location.altitude = gps_location['altitude']
+		if gps_location['latitude'] != 500.0 and gps_location['longitude'] != 500.0:
+			msg_gps_location.latitude = gps_location['latitude']
+			msg_gps_location.longitude = gps_location['longitude']
+			msg_gps_location.altitude = gps_location['altitude']
+		else:
+			msg_gps_location.latitude = float('nan')
+			msg_gps_location.longitude = float('nan')
+			msg_gps_location.altitude = float('nan')
 		msg_gps_location.position_covariance[0] = \
-			(math.sqrt(gps_location['latitude_accuracy'])
-			 if gps_location['latitude_accuracy'] > 0
-			 else gps_location['latitude_accuracy'])
+			(gps_location['latitude_accuracy']**2  # https://answers.ros.org/question/10310/calculate-navsatfix-covariance/
+			 if (gps_location['latitude_accuracy'] >= 0 and gps_location['latitude'] != 500.0)
+			 else float('nan'))
 		msg_gps_location.position_covariance[4] = \
-			(math.sqrt(gps_location['longitude_accuracy'])
-			 if gps_location['longitude_accuracy'] > 0
-			 else gps_location['longitude_accuracy'])
+			(gps_location['longitude_accuracy']**2  # https://answers.ros.org/question/10310/calculate-navsatfix-covariance/
+			 if (gps_location['longitude_accuracy'] >= 0 and gps_location['longitude'] != 500.0)
+			 else float('nan'))
 		msg_gps_location.position_covariance[8] = \
-			(math.sqrt(gps_location['altitude_accuracy'])
-			 if gps_location['altitude_accuracy'] > 0
-			 else gps_location['altitude_accuracy'])
+			(gps_location['altitude_accuracy']**2  # https://answers.ros.org/question/10310/calculate-navsatfix-covariance/
+			 if gps_location['altitude_accuracy'] >= 0
+			 else float('nan'))
 		msg_gps_location.position_covariance_type = msg_gps_location.COVARIANCE_TYPE_DIAGONAL_KNOWN
 		self.pub_gps_location.publish(msg_gps_location)
 

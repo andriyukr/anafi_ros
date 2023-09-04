@@ -17,9 +17,9 @@ from anafi_ros_interfaces.msg import PilotingCommand
 
 class Example(Node):
 	def __init__(self):
-		self.node = rclpy.create_node('example')
+		self.node = rclpy.create_node('anafi_ros_example')
 
-		self.node.get_logger().info("Example node is running...")
+		self.node.get_logger().info("Example is running...")
 
 		# Subscribers
 		self.node.create_subscription(NavSatFix, 'drone/gps/location', self.gps_callback, qos_profile_sensor_data)
@@ -33,9 +33,6 @@ class Example(Node):
 		self.drone_land_client = self.node.create_client(Trigger, 'drone/land')
 		self.skycontroller_offboard_client = self.node.create_client(SetBool, 'skycontroller/offboard')
 
-		# Messages
-		self.piloting_command_msg = PilotingCommand()
-
 		# Variables
 		self.drone_state = ""
 		self.time = Time(seconds=0.0)
@@ -46,6 +43,8 @@ class Example(Node):
 	
 	# Timer callback
 	def on_timer(self):
+		piloting_command_msg = PilotingCommand()
+
 		if self.time < self.initial_time + Duration(seconds=1.0):
 			self.node.get_logger().info("Waiting for take-off time...", throttle_duration_sec=1.0)
 		elif self.drone_state == "LANDED" and self.time < self.initial_time + Duration(seconds=2.0):
@@ -54,12 +53,12 @@ class Example(Node):
 			self.drone_takeoff_client.call_async(req)
 		elif self.time < self.initial_time + Duration(seconds=5.0):
 			self.node.get_logger().info("Ascending...", throttle_duration_sec=1.0)
-			self.piloting_command_msg.gaz = 1.0
-			self.pub_drone_command.publish(self.piloting_command_msg)
+			piloting_command_msg.gaz = 1.0
+			self.pub_drone_command.publish(piloting_command_msg)
 		elif self.time < self.initial_time + Duration(seconds=10.0):
 			self.node.get_logger().info("Hovering...", throttle_duration_sec=1.0)
-			self.piloting_command_msg.gaz = 0.0
-			self.pub_drone_command.publish(self.piloting_command_msg)
+			piloting_command_msg.gaz = 0.0
+			self.pub_drone_command.publish(piloting_command_msg)
 		elif self.drone_state != "LANDED" and self.drone_state != "LANDING" and self.time < self.initial_time + Duration(seconds=11.0):
 			self.node.get_logger().info("Landing...", throttle_duration_sec=1.0)
 			req = Trigger.Request()

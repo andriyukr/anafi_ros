@@ -1,5 +1,5 @@
 # Usage: 
-# 	- connection through Skycontroiller [recommended]:
+# 	- connection through Skycontroller [recommended]:
 # 		ros2 launch anafi_ros_nodes anafi_launch.py namespace:='anafi' ip:='192.168.53.1'
 #	- direct connection to Anafi:
 # 		ros2 launch anafi_ros_nodes anafi_launch.py namespace:='anafi' ip:='192.168.42.1' model:='ai'

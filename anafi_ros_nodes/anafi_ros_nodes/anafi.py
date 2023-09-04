@@ -61,13 +61,6 @@ from anafi_ros_nodes.event_listener_skycontroller import EventListenerSkyControl
 from anafi_ros_nodes.utils import euler_from_quaternion, bound_percentage, quaternion_inverse, rotate_vector, rotate_quaternion
 
 logness.update_config({  # https://developer.parrot.com/docs/olympe/olympeapi.html#olympe.log.update_config
-	"handlers": {
-		"log_file": {
-			"class": "logness.FileHandler",
-			"formatter": "default_formatter",
-			"filename": "anafi.log"
-		}
-	},
 	"loggers": {
 		"olympe": {
 			"level": "WARNING",  # {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"}
@@ -579,7 +572,6 @@ class Anafi(Node):
 				if offboard:
 					self.switch_offboard()
 				else:
-					
 					self.switch_manual()
 					if not self.skycontroller_enabled:
 						return SetParametersResult(successful=False, reason="Cannot swith to manual control without Skycontroller!")
@@ -692,14 +684,14 @@ class Anafi(Node):
 				self.node.get_logger().debug("Parameter 'storage/download_folder' set to '%s'" % self.download_folder)
 
 			# gimbal related
-			if parameter.name == 'gimbal/max_speed 	':
+			if parameter.name == 'gimbal/max_speed':
 				max_gimbal_speed = parameter.value
 				self.drone(gimbal.set_max_speed(  # https://developer.parrot.com/docs/olympe/arsdkng_gimbal.html#olympe.messages.gimbal.max_speed
 					gimbal_id=0,
 					yaw=0,
 					pitch=max_gimbal_speed,  # [1, 180] (deg/s)
 					roll=max_gimbal_speed))  # [1, 180] (deg/s)
-				self.node.get_logger().debug("Parameter 'gimbal/max_speed 	' set to %.1f deg" % max_gimbal_speed)
+				self.node.get_logger().debug("Parameter 'gimbal/max_speed' set to %.1f deg" % max_gimbal_speed)
 
 		return SetParametersResult(successful=True)
 
@@ -936,7 +928,7 @@ class Anafi(Node):
 	def arm_callback(self, request, response):
 		if request.data:
 			self.node.get_logger().warning("Arming")
-			self.drone(UserTakeOff(state = 1)).wait() # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.Piloting.UserTakeOff
+			self.drone(UserTakeOff(state = 1)).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.Piloting.UserTakeOff
 		else:
 			self.node.get_logger().info("Disarming")
 			self.drone(
@@ -974,7 +966,7 @@ class Anafi(Node):
 		if request.data:
 			self.node.get_logger().info("Navigating Home")
 			self.drone(
-				PCMD(flag=1, roll=0, pitch=0, yaw=0, gaz=0, timestampAndSeqNum=0)  >>
+				PCMD(flag=1, roll=0, pitch=0, yaw=0, gaz=0, timestampAndSeqNum=0) >>
 				FlyingStateChanged(state="hovering")
 			).wait()
 			self.drone(NavigateHome(start=1)).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.Piloting.NavigateHome
