@@ -124,7 +124,7 @@ where
 
 The complete list of [subscribed](details.md#subscribed-topics) and [published](details.md#published-topics) topics, available [services](details.md#services) and [parameters](details.md#parameters) is [here](details.md).
 
-## Connecting multiple drones
+## Connect multiple drones
 
 Follow the instructions [here](multiple-drones.md).
 
