@@ -109,7 +109,7 @@
 | drone/max_pitch_roll_rate 	| float 	| 200.0 		| [40.0, 300.0] 								| maximum pitch and roll rotation speed | º/s 		| 
 | drone/max_vertical_speed 	| float 	| 1.0 			| [0.1, 4.0] 									| maximum vertical speed 		| m/s 		| 
 | drone/max_yaw_rate 		| float 	| 180.0 		| [3.0, 200.0] 									| maximum yaw rotation speed 		| º/s 		| 
-| drone/model 			| string 	| "4k"			| {"4k", "thermal", "usa", "ai"} 					| drone's model 			| 		|
+| drone/model 			| string 	| 			| {"4k", "thermal", "usa", "ai"} 					| drone's model 			| 		|
 | drone/name 			| string 	| 			| "[drone/model]_[device/ip]" 					| drone's name 			| 		|
 | drone/offboard 			| bool 	| false			| {true: offboard control, false: manual control} 					| enable offboard control mode 			| 		|
 | drone/serial 			| string 	| 			|  					| drone's serial number 			| 		|
