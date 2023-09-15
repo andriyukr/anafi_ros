@@ -96,9 +96,9 @@
 | camera/mode 			| int 		| 0 			| {0: camera in recording mode, 1: camera in photo mode} 			| camera mode 				| 		|
 | camera/stereo/disparity_map 	| bool 		| false 			| {true: enabled, false: disabled} 			| stream disparity map image (supported only by ANAFI Ai) 				| 		|
 | camera/stereo/obstacle_avoidance 	| bool 		| true 			| {true: enabled, false: disabled} 			| obstacle avoidance (supported only by ANAFI Ai) 				| 		|
-| camera/rendering 		| int 		| 0 			| {0: visible, 1: thermal, 2: blended} 						| thermal image rendering mode (supported only by ANAFI Thermal and ANAFI USA) 						| |
 | camera/streaming 		| int 		| 0 			| {0: minimize latency with average reliability (best for piloting), 1: maximize reliability with an average latency, 2: maximize reliability using a frame-rate decimation} 	| streaming mode 	| |
 | camera/style 			| int 		| 0 			| {0: natural look, 1: flat and desaturated images, best for post-processing, 2: intense - bright colors, warm shade, high contrast, 3: pastel - soft colors, cold shade, low contrast} | images style 		| |
+| camera/thermal/rendering 		| int 		| 0 		| {0: visible, 1: thermal, 2: blended} 						| thermal image rendering mode (supported only by ANAFI Thermal and ANAFI USA) 						| |
 | device/ip 	| string 	| "192.168.53.1"			| 										| IP address of the connected device 		| 		|
 | drone/banked_turn 		| bool 		| true 			| {true: enabled, false: disabled} 						| banked turn 				| 		|
 | drone/camera_operated 		| bool 		| false 		| {true: commands relative to the camera pitch, false: otherwise} 		| 					| 		| 
