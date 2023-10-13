@@ -2,17 +2,17 @@
 
 The simulation environment is based on [Parrot Sphinx](https://developer.parrot.com/docs/sphinx/index.html). It supports [ANAFI 4K](https://developer.parrot.com/docs/sphinx/supported_drones.html#anafi) and [ANAFI Ai](https://developer.parrot.com/docs/sphinx/supported_drones.html#anafi-ai).
 
-> [!IMPORTANT]  
+> [!IMPORTANT]
 > Sphinx simulator does not allow running multiple drones.
 
 ## Installation
 
-> [!IMPORTANT]  
+> [!IMPORTANT]
 > Sphinx simulator runs only on 64-bit **Ubuntu 20.04** and **Ubuntu 22.04**.
 
 Follow the [installation procedure](https://developer.parrot.com/docs/sphinx/installation.html).
 
-> [!WARNING]  
+> [!WARNING]
 > Currently Sphinx simulator supports only kernel versions **< 6.2**.
 
 So, the default supported distributions of Ubuntu are **22.04.2**, **22.04.1**, **22.04.0**, **20.04.5**, **20.04.4**, **20.04.3**, **20.04.2**.
@@ -45,10 +45,10 @@ So, the default supported distributions of Ubuntu are **22.04.2**, **22.04.1**, 
 
        parrot-ue4-empty
 
-   > [!NOTE]  
+   > [!NOTE]
    > You can check other [available worlds](https://developer.parrot.com/docs/sphinx/available_worlds.html).
 
-4. *In terminal 3*, launch ROS bridge
+3. *In terminal 3*, launch ROS bridge
   
    * for ANAFI **Ai**:
       
@@ -58,5 +58,28 @@ So, the default supported distributions of Ubuntu are **22.04.2**, **22.04.1**, 
       
          ros2 launch anafi_ros_nodes anafi_launch.py ip:='10.202.0.1' model:='4k'
 
-### Ground truth pose
+### Interaction with Sphinx
 
+It is possible to interact with Sphinx simulation environment by using [pysphinx](https://developer.parrot.com/docs/sphinx/pysphinxapi.html).
+
+1. Before being able to use it, you have to set the `LD_LIBRARY_PATH` and `PYTHONPATH` environment variables, by runnung in a *new terminal*:
+
+       . /opt/parrot-sphinx/usr/bin/parrot-sphinx-setenv.sh
+
+2. Then, in the *same terminal* run the ROS node
+
+   * for ANAFI **Ai**:
+      
+         ros2 run anafi_ros_nodes sphinx --ros-args -r __ns:=/anafi -p drone_name:=anafi_ai
+
+   * for ANAFI **4K**:
+      
+         ros2 run anafi_ros_nodes sphinx --ros-args -r __ns:=/anafi -p drone_name:=anafi
+
+#### Ground truth pose
+
+The ground truth pose is published on `drone/pose` topic at 1KHz.
+
+#### Teleportation
+
+It is possible to move the drone by publishing the desired pose on the `drone/move` topic.
