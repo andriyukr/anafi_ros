@@ -19,10 +19,10 @@ class Sphinx(Node):
 		self.node.get_logger().info("Sphinx node is running...")
 
 		# Subscribers
-		self.node.create_subscription(PoseStamped, 'sphinx/move_drone', self.move_callback, qos_profile_system_default)
+		self.node.create_subscription(PoseStamped, 'drone/move', self.move_callback, qos_profile_system_default)
 
 		# Publishers
-		self.pub_pose = self.node.create_publisher(PoseStamped, 'sphinx/drone_pose', qos_profile_sensor_data)
+		self.pub_pose = self.node.create_publisher(PoseStamped, 'drone/pose', qos_profile_sensor_data)
 
 		# Messages
 		self.msg_pose = PoseStamped()
@@ -49,6 +49,7 @@ class Sphinx(Node):
 	def pose_callback(self):
 		pose = self.sphinx.get_drone_pose(machine_name=self.drone_name)  # https://developer.parrot.com/docs/sphinx/pysphinxapi.html#pysphinx.Sphinx.get_drone_pose
 		quaternion = quaternion_from_euler(pose[3], pose[4], pose[5])
+		
 		self.msg_pose.header.stamp = self.node.get_clock().now().to_msg()
 		self.msg_pose.header.frame_id = '/world'
 		self.msg_pose.pose.position.x = pose[0]

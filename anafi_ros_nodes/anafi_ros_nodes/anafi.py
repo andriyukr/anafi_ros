@@ -187,7 +187,7 @@ class Anafi(Node):
 		self.event_listener_anafi = EventListenerAnafi(self)
 		self.event_listener_skycontroller = EventListenerSkyController(self)
 
-		self.state = 'LANDED'
+		self.state = 'DISCONNECTED'
 		self.gps_fixed = False
 		self.offboard = False
 
@@ -380,12 +380,18 @@ class Anafi(Node):
 		self.node.get_logger().debug('GimbalMaxSpeed (deg/s): roll=%f [%f, %f], pitch=%f [%f, %f], yaw=%f [%f, %f]' % (max_speed["current_roll"], max_speed["min_bound_roll"], max_speed["max_bound_roll"], max_speed["current_pitch"], max_speed["min_bound_pitch"], max_speed["max_bound_pitch"], max_speed["current_yaw"], max_speed["min_bound_yaw"], max_speed["max_bound_yaw"]))
 
 		if self.model in {'4k', 'thermal', 'usa'}:
-			self.node.get_logger().debug('Camera states: %s' % (str(self.drone.get_state(olympe.messages.camera.camera_states))))  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.messages.camera.camera_states
-			self.node.get_logger().debug('Camera capabilities: %s' % (str(self.drone.get_state(olympe.messages.camera.camera_capabilities))))  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.messages.camera.camera_capabilities
-			self.node.get_logger().debug('Recording capabilities: %s' % (str(self.drone.get_state(olympe.messages.camera.recording_capabilities))))  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.messages.camera.recording_capabilities
+			try:
+				self.node.get_logger().debug('Camera states: %s' % (str(self.drone.get_state(olympe.messages.camera.camera_states))))  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.messages.camera.camera_states
+				self.node.get_logger().debug('Camera capabilities: %s' % (str(self.drone.get_state(olympe.messages.camera.camera_capabilities))))  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.messages.camera.camera_capabilities
+				self.node.get_logger().debug('Recording capabilities: %s' % (str(self.drone.get_state(olympe.messages.camera.recording_capabilities))))  # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.messages.camera.recording_capabilities
 
-			relative_attitude_bounds = self.drone.get_state(olympe.messages.gimbal.relative_attitude_bounds)[0]  # https://developer.parrot.com/docs/olympe/arsdkng_gimbal.html#olympe.messages.gimbal.relative_attitude_bounds
-			self.node.get_logger().debug('GimbalRelativeBounds (deg): roll=[%f, %f], pitch=[%f, %f], yaw=[%f, %f]' % (-relative_attitude_bounds["max_roll"], -relative_attitude_bounds["min_roll"], -relative_attitude_bounds["max_pitch"], -relative_attitude_bounds["min_pitch"], -relative_attitude_bounds["max_yaw"], -relative_attitude_bounds["min_yaw"]))
+				relative_attitude_bounds = self.drone.get_state(olympe.messages.gimbal.relative_attitude_bounds)[0]  # https://developer.parrot.com/docs/olympe/arsdkng_gimbal.html#olympe.messages.gimbal.relative_attitude_bounds
+				self.node.get_logger().debug('GimbalRelativeBounds (deg): roll=[%f, %f], pitch=[%f, %f], yaw=[%f, %f]' % (-relative_attitude_bounds["max_roll"], -relative_attitude_bounds["min_roll"], -relative_attitude_bounds["max_pitch"], -relative_attitude_bounds["min_pitch"], -relative_attitude_bounds["max_yaw"], -relative_attitude_bounds["min_yaw"]))
+			except RuntimeError:  # RuntimeError: camera.camera_states state is uninitialized
+				self.node.get_logger().fatal("The model is NOT '" + self.model + "'")
+				self.disconnect()
+				rclpy.shutdown()
+				exit()
 
 		if self.model in {'thermal', 'usa'}:
 			self.drone(thermal.set_palette_settings(  # https://developer.parrot.com/docs/olympe/arsdkng_thermal.html#olympe.messages.thermal.set_palette_settings
@@ -424,51 +430,41 @@ class Anafi(Node):
 	def connect(self):
 		msg_state = String()
 
-		while True:
-			msg_state.data = "CONNECTING"
+		while True:  # connection loop
+			if self.skycontroller_enabled:  # connecting to the SkyController
+				msg_state.data = "CONTROLLER_CONNECTING"
+			else:  # connecting to the drone
+				msg_state.data = "DRONE_CONNECTING"
 			self.pub_state.publish(msg_state)
-			if self.drone_serial != "":
+			
+			if self.skycontroller_enabled or self.drone_serial == "":
+				if self.drone.connect():
+					break
+			else:
 				self.node.get_logger().info("Connecting to %s with %s" % (self.drone_serial, self.wifi_key), once=True)
 				self.drone(olympe.messages.drone_manager.connect(  # https://developer.parrot.com/docs/olympe/arsdkng_drone_manager.html#olympe.messages.drone_manager.connect
 					serial=self.drone_serial,
-					key=self.wifi_key)).wait()  # TODO: check why sometimes doesn't connect
+					key=self.wifi_key))  # TODO: check why sometimes doesn't connect
 				if self.drone(connection_state(state="connected", _policy="check")):  # https://developer.parrot.com/docs/olympe/arsdkng_drone_manager.html#olympe.enums.drone_manager.connection_state
 					break
-			else:
-				if self.drone.connect():
-					break
+
 			if not rclpy.ok():
 				self.disconnect()
 				exit()
-
-		if self.skycontroller_enabled:  # connect to the SkyController
-			msg_state.data = "CONNECTED_SKYCONTROLLER"
-			self.pub_state.publish(msg_state)
+			time.sleep(0.1)
+		
+		if self.skycontroller_enabled:  # connected to the SkyController
 			self.node.get_logger().info("Connected to SkyController")
-
 			self.switch_manual()
 			self.event_listener_skycontroller.subscribe()
 			self.timer_skycontroller = self.node.create_timer(0.01, self.event_listener_skycontroller.callback)  # create_timer() fires only after rclpy.spin()
-			# self.skycontroller_thread = threading.Thread(target=self.event_listener_skycontroller.callback)
-			# self.skycontroller_thread.start()
-
-			while True:  # connect to the drone
-				if self.drone(connection_state(state="connected", _policy="check")):
-					break				
-				if not rclpy.ok():
-					self.disconnect()
-					exit()
-				else:
-					msg_state.data = "SERCHING_DRONE"
-					self.pub_state.publish(msg_state)
-					self.node.get_logger().info("Connection to Anafi: %s" % self.drone.get_state(connection_state)["state"].name, once=True)
-				time.sleep(1.0)
-			self.node.get_logger().info("Connection to Anafi: %s" % (self.drone.get_state(connection_state)["state"].name))
-		else:  # connect to Anafi
+			msg_state.data = "CONTROLLER_CONNECTED"
+			self.pub_state.publish(msg_state)
+		else:  # connected to Anafi
 			self.node.get_logger().info("Connected to Anafi")
 			self.switch_offboard()
 			
-		msg_state.data = "CONNECTED_DRONE"
+		msg_state.data = "DRONE_CONNECTED"
 		self.pub_state.publish(msg_state)
 
 		self.event_listener_anafi.subscribe()
@@ -482,6 +478,10 @@ class Anafi(Node):
 		self.frame_queue = queue.Queue(maxsize=1)  # TODO: replace by a shared variable
 		
 	def disconnect(self):
+		msg_state = String()
+		msg_state.data = "DISCONNECTING"
+		self.pub_state.publish(msg_state)
+
 		if 'self.timer_skycontroller' in vars():
 			self.timer_skycontroller.destroy()
 			#self.skycontroller_thread.join()
@@ -498,16 +498,13 @@ class Anafi(Node):
 
 		self.drone.disconnect()
 
+		msg_state.data = "DISCONNECTED"
+		self.pub_state.publish(msg_state)
+
 	def check_callback(self):  # checks for the connection
 		if not self.drone.connection_state():
 			self.node.get_logger().fatal('Drone disconnected!!!')
-			msg_state = String()
-			msg_state.data = "DISCONNECTING"
-			self.pub_state.publish(msg_state)
 			self.disconnect()
-			msg_state.data = "DISCONNECTED"
-			self.pub_state.publish(msg_state)
-
 			self.node.get_logger().info('Reconnecting to the drone...')
 			self.connect()
 
@@ -529,7 +526,7 @@ class Anafi(Node):
 		msg_battery_health.data = self.drone.get_state(olympe.messages.battery.health)['state_of_health']  # https://developer.parrot.com/docs/olympe/arsdkng_battery.html#olympe.messages.battery.health
 		self.pub_battery_health.publish(msg_battery_health)
 
-	def parameter_callback(self, parameters):
+	def parameter_callback(self, parameters):	
 		for parameter in parameters:
 			# piloting related
 			if parameter.name == 'drone/max_pitch_roll':
@@ -660,7 +657,6 @@ class Anafi(Node):
 					blending_rate=1.0)).wait()
 				self.change_thermal_rendering_thread = threading.Thread(target=self.change_thermal_rendering)  # to prevent rqt_reconfigure timeout warning
 				self.change_thermal_rendering_thread.start()
-				self.node.get_logger().debug("Parameter 'camera/thermal/rendering' set to '%s'" % rendering_mode(int(self.thermal_rendering)))
 			if parameter.name == 'camera/thermal/emissivity' and self.model in {'thermal', 'usa'}:
 				emissivity = parameter.value
 				self.drone(thermal.set_emissivity(emissivity=emissivity)).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_thermal.html#olympe.messages.thermal.set_emissivity
@@ -672,7 +668,7 @@ class Anafi(Node):
 				self.drone(obstacle_avoidance.set_mode(  # TODO: make it parametric. https://developer.parrot.com/docs/olympe/arsdkng_obstacle_avoidance.html#olympe.messages.obstacle_avoidance.set_mode
 					mode=obstacle_avoidance_mode(int(obstacle_avoidance_enabled))))  # https://developer.parrot.com/docs/olympe/arsdkng_obstacle_avoidance.html#olympe.enums.obstacle_avoidance.mode
 				self.node.get_logger().debug("Parameter 'camera/stereo/obstacle_avoidance' set to '%s'" % obstacle_avoidance_mode(int(obstacle_avoidance_enabled)))
-			if parameter.name == 'camera/stereo/disparity_map' and self.model in {'ai'} and not self.simulation_environment:  # FIXME: check why if does not work in simulation
+			if parameter.name == 'camera/stereo/disparity_map' and self.model in {'ai'}:  # FIXME: check why if does not work in simulation
 				self.disparity_map = parameter.value
 				self.drone.streaming.stop()
 				self.drone.streaming.start(media_name=("Disparity map" if self.disparity_map else "Front camera"))
@@ -704,6 +700,7 @@ class Anafi(Node):
 			self.drone.streaming.stop()
 			self.drone(thermal.set_mode(mode='blended')).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_thermal.html#olympe.messages.thermal.set_mode
 			self.drone.streaming.start(media_name="ParrotThermalBlendedVideo")
+		self.node.get_logger().debug("Parameter 'camera/thermal/rendering' set to '%s'" % rendering_mode(int(self.thermal_rendering)))
 
 	def yuv_frame_cb(self, yuv_frame):  # this function will be called by Olympe for each decoded YUV frame
 		yuv_frame.ref()
@@ -884,9 +881,16 @@ class Anafi(Node):
 								else:
 									self.node.get_logger().fatal("Unusable signal: %sdBm" % str(rssi), throttle_duration_sec=0.1)
 
-				if self.model in {'ai'} and vmeta[1]['links'] != []:  # TODO: check to which network the drone is connected (wlan or cellular)
-					msg_quality.data = vmeta[1]['links'][0]['starfish']['quality']  # [0=bad, 5=good]
-					self.pub_link_quality.publish(msg_quality)
+				if self.model == 'ai' and vmeta[1]['links'] != []:  # TODO: check to which network the drone is connected (wlan or cellular)
+					if 'starfish' in vmeta[1]['links'][0]:
+						msg_quality = UInt8()
+						msg_quality.data = vmeta[1]['links'][0]['starfish']['quality']  # [0=bad, 5=good]
+						self.pub_link_quality.publish(msg_quality)
+					else:
+						self.node.get_logger().fatal("The model is NOT '" + self.model + "'")
+						self.disconnect()
+						rclpy.shutdown()
+						exit()
 
 				cv2_cvt_color_flag = {  # convert pdraw YUV flag to OpenCV YUV flag
 					olympe.VDEF_I420: cv2.COLOR_YUV2BGR_I420,
@@ -938,8 +942,8 @@ class Anafi(Node):
 		return response
 
 	def land_callback(self, request, response):
-		self.node.get_logger().info("Landing")
 		self.drone(Landing()).wait() # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.Piloting.Landing
+		self.node.get_logger().info("Landing")
 		return response
 		
 	def emergency_callback(self, request, response):
@@ -953,13 +957,13 @@ class Anafi(Node):
 		return response
 		
 	def halt_callback(self, request, response):  # calls all commands to halt
-		self.node.get_logger().warning("HALT!!!")
 		self.drone(PCMD(flag=1, roll=0, pitch=0, yaw=0, gaz=0, timestampAndSeqNum=0))
 		self.drone(NavigateHome(start=0))
 		self.drone(StopPilotedPOI())
 		self.drone(olympe.messages.common.Mavlink.Stop())
 		self.drone(olympe.messages.follow_me.stop())
 		self.drone(olympe.messages.rth.abort())
+		self.node.get_logger().warning("HALT!!!")
 		return response
 		
 	def navigate_home_callback(self, request, response):

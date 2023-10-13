@@ -1,7 +1,7 @@
 #!/bin/bash
-# SKYCONTROLLER interface configuration script: configure one SKYCONTROLLER interface
+# Skycontroller interface configuration script: configure one Skycontroller interface
 
-# All SKYCONTROLLERs have a default IP address set to 192.168.53.1. Hence by default, multiple SKYCONTROLLERs connected to a host via multiple USB ports are not addressable. This script creates a new ip address (on an independent subnet) on a wifi interface. This new address (and it's subnet) is intended to be decicated to this interface and all traffic on this address is correclty routed to the associated SKYCONTROLLER.
+# All Skycontrollers have a default IP address set to 192.168.53.1. Hence by default, multiple Skycontrollers connected to a host via multiple USB ports are not addressable. This script will create a new IP address (on an independent subnet) for each USB interface. The new IP address (and it's subnet) is intended to be dedicated to this interface and all traffic on this address will be routed to the associated Skycontroller.
     
 # USAGE:
 #     setup:

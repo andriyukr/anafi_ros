@@ -12,7 +12,6 @@ from std_msgs.msg import String
 from sensor_msgs.msg import NavSatFix
 from std_srvs.srv import Trigger, SetBool
 
-from anafi_ros_nodes.utils import euler_from_quaternion, quaternion_from_euler
 from anafi_ros_interfaces.msg import PilotingCommand
 
 class Example(Node):
@@ -75,7 +74,7 @@ class Example(Node):
 	
 	# Drone state subscriber callback
 	def drone_state_callback(self, msg):
-		self.drone_state = msg.data
+		self.drone_state = msg.data  # 'LANDED', 'MOTOR_RAMPING', 'USER_TAKEOFF', 'TAKINGOFF', 'HOVERING', 'FLYING', 'LANDING', 'EMERGENCY'
 
 def main(args=None):
 	rclpy.init(args=sys.argv)
