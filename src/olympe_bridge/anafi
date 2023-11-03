@@ -269,6 +269,14 @@ class Anafi(threading.Thread):
 		#	rospy.logwarn('thermal_mode: ' + str(self.drone.get_state(olympe.messages.thermal.mode)))
 		#	self.drone(olympe.messages.thermal.set_rendering(mode='blended', blending_rate=0.5)).wait() # https://developer.parrot.com/docs/olympe/arsdkng_thermal.html#olympe.messages.thermal.set_rendering
 		#	rospy.logwarn('rendering: ' + str(self.drone.get_state(olympe.messages.thermal.rendering)))
+
+		# Setup the callback functions to do some live video processing
+		self.processing_thread = threading.Thread(target=self.yuv_frame_processing)
+		self.drone.streaming.set_callbacks(
+			raw_cb=self.yuv_frame_cb,
+			flush_raw_cb=self.flush_cb)
+		self.drone.streaming.start(media_name="DefaultVideo")
+		self.processing_thread.start()
 										
 	def connect(self):
 		self.msg_skycontroller = SkycontrollerCommand()
@@ -326,14 +334,6 @@ class Anafi(threading.Thread):
 		self.slow_timer = rospy.Timer(rospy.Duration(1.00), self.slow_callback)
 
 		self.frame_queue = queue.Queue(maxsize=1)  # TODO: replace by a shared variable
-		self.processing_thread = threading.Thread(target=self.yuv_frame_processing)
-
-		# Setup the callback functions to do some live video processing
-		self.drone.streaming.set_callbacks(
-			raw_cb=self.yuv_frame_cb,
-			flush_raw_cb=self.flush_cb)
-		self.drone.streaming.start()
-		self.processing_thread.start()
 		
 	def disconnect(self):
 		self.pub_state.publish("DISCONNECTING")
@@ -806,8 +806,8 @@ class Anafi(threading.Thread):
 		return []
 		
 	def fast_callback(self, event):
-		motion_state = self.drone.get_state(olympe.messages.ardrone3.PilotingState.MotionState)['state'] # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.PilotingState.MotionState  # TODO: consider moving it to anafi listener
-		self.pub_steady.publish(self.state == "LANDED" and motion_state == olympe.enums.ardrone3.PilotingState.MotionState_State.steady)  # TODO: consider moving it to anafi listener
+		#motion_state = self.drone.get_state(olympe.messages.ardrone3.PilotingState.MotionState)['state'] # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.PilotingState.MotionState  # TODO: consider moving it to anafi listener
+		#self.pub_steady.publish(self.state == "LANDED" and motion_state == olympe.enums.ardrone3.PilotingState.MotionState_State.steady)  # TODO: consider moving it to anafi listener
 
 		if self.skycontroller_enabled:
 			self.msg_skycontroller.header.stamp = rospy.Time.now()
@@ -819,8 +819,8 @@ class Anafi(threading.Thread):
 			self.msg_skycontroller.reset_zoom = False
 			
 	def slow_callback(self, event):	
-		self.gps_fixed = bool(self.drone.get_state(olympe.messages.ardrone3.GPSSettingsState.GPSFixStateChanged)['fixed']) # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_gps.html#olympe.messages.ardrone3.GPSSettingsState.GPSFixStateChanged  FIXME: check if the state is initialised - e.g., using IMU
-		self.pub_gps_fix.publish(self.gps_fixed)
+		#self.gps_fixed = bool(self.drone.get_state(olympe.messages.ardrone3.GPSSettingsState.GPSFixStateChanged)['fixed']) # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_gps.html#olympe.messages.ardrone3.GPSSettingsState.GPSFixStateChanged  FIXME: check if the state is initialised - e.g., using IMU
+		#self.pub_gps_fix.publish(self.gps_fixed)
 			
 		home = self.drone.get_state(olympe.messages.ardrone3.GPSSettingsState.HomeChanged)  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_gps.html#olympe.messages.ardrone3.GPSSettingsState.HomeChanged  FIXME: check if the state is initialised - e.g., using IMU
 		if home['latitude'] != 500 and home['longitude'] != 500 and home['altitude'] != 500: 
