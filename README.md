@@ -1,6 +1,6 @@
 # ROS2 Bridge for Parrot ANAFI Drones
 
-This ROS2 package contains interface to Olympe SDK. Currently, it is compatible with the following models from Parrot ANAFI family: 4K, Thermal, USA, Ai.
+This ROS2 package contains the interface to Olympe SDK. Currently, it is compatible with the following models from the **Parrot ANAFI** family: **4K**, **Thermal**, **USA** and **Ai**.
 
 ## Overview
 
@@ -56,7 +56,7 @@ This package has been tested with **python3** in **ROS2 Humble**/**Ubuntu 22.04*
     <details> 
         <summary>Command 'python' not found</summary>
 
-    Set `python3` as default `python` version:
+    Set `python3` as the default `python` version:
 
       echo 'alias python=python3' >> ~/.bash_aliases
       source ~/.bash_aliases
@@ -115,10 +115,10 @@ To connect to the drone, run in the terminal:
 where
 * `namespace` is the namespace for this specific drone, it is used to connect to multiple drones;
 * `ip` is the IP address of the device to connect, it has to be
-  * `'192.168.53.1'`, for connection through Skycontroller (recommended),
+  * `'192.168.53.1'`, for connection through Skycontroller (*recommended*),
   * `'192.168.42.1'`, for direct connection to the drone through WiFi,
   * `'10.202.0.1'`, for connection to the simulated drone in Sphinx;
-* `model` (ignored, when connecting through Skycontroller) is the model of the drone, it has to be `'4k'`, `'thermal'`, `'usa'` or `'ai'`, depending on the drone model you are connectiong to.
+* `model` (ignored, when connecting through Skycontroller) is the model of the drone, it has to be `'4k'`, `'thermal'`, `'usa'` or `'ai'`, depending on the drone model you are connecting to.
 
 ## Package details
 
