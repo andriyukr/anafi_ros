@@ -124,7 +124,7 @@ class Anafi(Node):
 		self.pub_battery_health = self.node.create_publisher(UInt8, 'battery/health', qos_profile)
 
 		# Services
-		self.node.create_service(SetBool, 'drone/arm', self.arm_callback)
+		self.node.create_service(SetBool, 'drone/hand_launch', self.hand_launch_callback)
 		self.node.create_service(Trigger, 'drone/takeoff', self.takeoff_callback)
 		self.node.create_service(Trigger, 'drone/land', self.land_callback)
 		self.node.create_service(Trigger, 'drone/emergency', self.emergency_callback)
@@ -937,12 +937,12 @@ class Anafi(Node):
 			self.node.get_logger().debug('Run Id: %s' % (run_id['runId']))
 		return response
 	
-	def arm_callback(self, request, response):
+	def hand_launch_callback(self, request, response):
 		if request.data:
-			self.node.get_logger().warning("Arming")
+			self.node.get_logger().warning("Enabled hand launch")
 			self.drone(UserTakeOff(state = 1)).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.Piloting.UserTakeOff
 		else:
-			self.node.get_logger().info("Disarming")
+			self.node.get_logger().info("Disabled hand launch")
 			self.drone(
 				Emergency() >>  # the fastest way to disarm
 				FlyingStateChanged(state="landed")
