@@ -103,7 +103,7 @@
 | `drone/banked_turn` 		| `bool` 		| `true` 			| {`true`: enabled, `false`: disabled} 						| banked turn 				| 		|
 | `drone/camera_operated` 		| `bool` 		| `false` 		| {`true`: commands relative to the camera pitch, `false`: otherwise} 		| 					| 		| 
 | `drone/max_altitude` 		| `float`		| `2.0` 			| [`0.5`, `4000.0`] 								| maximum altitude 			| m 		|
-| `drone/max_distance 		| `float` 	| `10.0` 			| [`10.0`, `4000.0`] 								| maximum distance 			| m 		| 
+| `drone/max_distance` 		| `float` 	| `10.0` 			| [`10.0`, `4000.0`] 								| maximum distance 			| m 		| 
 | `drone/max_horizontal_speed` 	| `float` 	| `1.0` 			| [`0.1`, `15.0`] 									| maximum horizontal speed 		| m/s 		| 
 | `drone/max_pitch_roll` 		| `float` 	| `10.0` 			| [`1.0`, `40.0`] 									| maximum pitch and roll angle 		| º 		| 
 | `drone/max_pitch_roll_rate` 	| `float` 	| `200.0` 		| [`40.0`, `300.0`] 								| maximum pitch and roll rotation speed | º/s 		| 
