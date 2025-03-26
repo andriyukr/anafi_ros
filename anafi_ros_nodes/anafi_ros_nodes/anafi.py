@@ -197,7 +197,6 @@ class Anafi(Node):
 
 		self.state = 'DISCONNECTED'
 		self.gps_fixed = False
-		self.offboard = False
 
 		self.connect()
 
@@ -471,6 +470,7 @@ class Anafi(Node):
 		
 		if self.skycontroller_enabled:  # connected to the SkyController
 			self.node.get_logger().info("Connected to SkyController")
+			self.offboard = True
 			self.switch_manual()
 			self.event_listener_skycontroller.subscribe()
 			self.timer_skycontroller = self.node.create_timer(0.01, self.event_listener_skycontroller.callback)  # create_timer() fires only after rclpy.spin()
@@ -478,6 +478,7 @@ class Anafi(Node):
 			self.pub_state.publish(msg_state)
 		else:  # connected to Anafi
 			self.node.get_logger().info("Connected to Anafi")
+			self.offboard = False
 			self.switch_offboard()
 			
 		msg_state.data = "DRONE_CONNECTED"
