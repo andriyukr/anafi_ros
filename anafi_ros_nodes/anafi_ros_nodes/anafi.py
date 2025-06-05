@@ -208,12 +208,12 @@ class Anafi(Node):
 		self.node.add_on_set_parameters_callback(self.parameter_callback)
 
 		# Dynamic parameters
-		self.node.declare_parameter("drone/max_pitch_roll", 10.0,  # 10.0
+		self.node.declare_parameter("drone/max_pitch_roll", 20.0,  # 10.0
 									ParameterDescriptor(description="Max pitch/roll (in deg) [1.0, 40.0]",
 														floating_point_range=[FloatingPointRange(from_value=1.0,
 																								 to_value=40.0,
 																								 step=0.0)]))
-		self.node.declare_parameter("drone/max_vertical_speed", 1.0,  # 3.0
+		self.node.declare_parameter("drone/max_vertical_speed", 2.0,  # 3.0
 									ParameterDescriptor(description="Max vertical speed (in m/s) [0.1, 4.0]",
 														floating_point_range=[FloatingPointRange(from_value=0.1,
 																								 to_value=4.0,
@@ -486,7 +486,7 @@ class Anafi(Node):
 
 		self.event_listener_anafi.subscribe()
 			
-		self.node.get_logger().debug('Boot Id: %s' % (self.drone.get_state(olympe.messages.common.CommonState.BootId)['bootId']))  # https://developer.parrot.com/docs/olympe/arsdkng_common_common.html#olympe.messages.common.CommonState.BootId
+		#self.node.get_logger().debug('Boot Id: %s' % (self.drone.get_state(olympe.messages.common.CommonState.BootId)['bootId']))  # https://developer.parrot.com/docs/olympe/arsdkng_common_common.html#olympe.messages.common.CommonState.BootId
 
 		self.timer_check = self.node.create_timer(0.01, self.check_callback)
 		self.timer_fast = self.node.create_timer(0.01, self.fast_callback)
@@ -747,8 +747,8 @@ class Anafi(Node):
 				self.pub_time.publish(msg_time)
 
 				header = Header()
-				#header.stamp = self.node.get_clock().now().to_msg()
-				header.stamp = msg_time
+				header.stamp = self.node.get_clock().now().to_msg()
+				#header.stamp = msg_time
 
 				drone_quat = vmeta[1]['drone']['quat']  # attitude
 				msg_attitude = QuaternionStamped()
@@ -803,9 +803,6 @@ class Anafi(Node):
 				msg_speed.vector.x = v[0]
 				msg_speed.vector.y = v[1]
 				msg_speed.vector.z = v[2]
-				#msg_speed.vector.x =  math.cos(yaw)*speed['north'] - math.sin(yaw)*speed['east']
-				#msg_speed.vector.y = -math.sin(yaw)*speed['north'] - math.cos(yaw)*speed['east']
-				#msg_speed.vector.z = -speed['down']
 				self.pub_speed.publish(msg_speed)
 
 				battery_percentage = vmeta[1]['drone']['battery_percentage']  # [0=empty, 100=full]

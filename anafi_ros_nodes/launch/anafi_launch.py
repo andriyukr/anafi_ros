@@ -41,8 +41,8 @@ def generate_launch_description():
 		name='anafi',
 		output="screen",
 		emulate_tty=True,
-		arguments=['--ros-args', '--params-file', config, '--log-level', 'INFO'],
-		parameters=[
+		arguments=['--ros-args', '--log-level', 'INFO'],
+		parameters=[config,
 			{'drone/model': LaunchConfiguration('model')},
 			{'device/ip': LaunchConfiguration('ip')}
 		]
