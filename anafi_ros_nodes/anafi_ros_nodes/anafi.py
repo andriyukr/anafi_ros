@@ -1296,7 +1296,7 @@ class Anafi(Node):
 			latitude=msg.latitude, # latitude (degrees)
 			longitude=msg.longitude, # longitude (degrees)
 			altitude=msg.altitude, # altitude (m)
-			orientation_mode=olympe.enums.move.orientation_mode(msg.orientation_mode), # https://developer.parrot.com/docs/olympe/arsdkng_move.html#olympe.enums.move.orientation_mode
+			orientation_mode=olympe.enums.ardrone3.MoveTo_Orientation_mode(msg.orientation_mode), # https://developer.parrot.com/docs/olympe/arsdkng_move.html#olympe.enums.move.orientation_mode
 			heading=msg.heading, # heading relative to the North (degrees)
 			max_horizontal_speed=self.max_horizontal_speed,
 			max_vertical_speed=self.max_vertical_speed,

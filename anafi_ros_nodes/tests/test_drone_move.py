@@ -34,7 +34,7 @@ class TestAnafiMove(unittest.TestCase):
         self.delta_speed = 0.05
         self.delta_degree = 6.0
         self.delta_radians = 0.2
-        self.delta_gps = 0.000001
+        self.delta_gps = 0.000005
 
     def tearDown(self):
         self.test_node.destroy_node()
@@ -444,14 +444,16 @@ class TestAnafiMove(unittest.TestCase):
         if self.test_node.drone_state != "TAKINGOFF" and self.test_node.drone_state != "FLYING":
             drone_utils.set_drone_initial_state(self.test_node, "HOVERING")
 
-        #get drone altitude
-        drone_utils.init_drone_altitude(self.test_node)
-        to_altitude = self.test_node.drone_altitude
+        #set target altitude
+        to_altitude = 2.8 #meters
+        #set displacement
+        displacement = (3.0, 3.0, 0.0) #north, east, altitude (meters)
+        #convert delta meters to delta GPS
+        delta_lat, delta_lon = drone_utils.convert_delta_meters_to_gps(self.test_node, displacement[0], displacement[1])
+
         #get drone location
         drone_utils.init_drone_gps_position(self.test_node)
         to_location = self.test_node.drone_gps_location
-        #convert delta meters to delta GPS
-        delta_lat, delta_lon = drone_utils.convert_delta_meters_to_gps(self.test_node, 3, 3)
         #calculate new position
         new_lat = to_location[0] + delta_lat
         new_lon = to_location[1] + delta_lon
@@ -460,7 +462,7 @@ class TestAnafiMove(unittest.TestCase):
         msg_moveto_command = MoveToCommand()
         msg_moveto_command.latitude = new_lat
         msg_moveto_command.longitude = new_lon
-        msg_moveto_command.altitude = to_altitude
+        msg_moveto_command.altitude = to_altitude + displacement[2]
         msg_moveto_command.heading = 0.0  #used for orientation mode 2 and 3
         msg_moveto_command.orientation_mode = 0  #no change on orientation
 
@@ -475,7 +477,7 @@ class TestAnafiMove(unittest.TestCase):
                 is_moved_to = True
                 break
             drone_utils.check_timeout(self.test_node, self.start_time_test)
-            time.sleep(0.2)
+            time.sleep(0.1)
 
         try:
             self.assertTrue(is_moved_to)
