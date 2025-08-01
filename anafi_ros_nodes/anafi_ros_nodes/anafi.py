@@ -20,9 +20,11 @@ import logness
 import sys
 import yaml
 import olympe
+import signal
 import anafi_ros_nodes
 
 from timeit import default_timer as timer
+from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from rclpy.parameter import Parameter
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy, qos_profile_system_default, qos_profile_sensor_data, qos_profile_services_default, qos_profile_parameters, qos_profile_parameter_events, qos_profile_action_status_default
@@ -77,8 +79,8 @@ class Anafi(Node):
 	models = {2324:"4k", 2329:"thermal", 2334:"usa", 2330:"ai"}  # correspondence between model's code and model's name
 
 	def __init__(self):
-		self.node = rclpy.create_node('anafi')
-
+		super().__init__('anafi')
+		self.node = self
 		self.node.get_logger().info("Anafi is running...")
 		
 		# Configure QoS profile for publishing and subscribing
@@ -493,22 +495,26 @@ class Anafi(Node):
 		self.timer_slow = self.node.create_timer(1.00, self.slow_callback)
 
 		self.frame_queue = queue.Queue(maxsize=1)  # TODO: replace by a shared variable
-		
+
 	def disconnect(self):
+		print("[INFO] Disconnecting...")
 		msg_state = String()
 		msg_state.data = "DISCONNECTING"
-		self.pub_state.publish(msg_state)
+		if rclpy.ok():
+			self.pub_state.publish(msg_state)
 
-		if 'self.timer_skycontroller' in vars():
+		if hasattr(self, 'processing_thread'):
+			self.drone.streaming.stop()
+			self.processing_thread.join(timeout=2.0)
+		if hasattr(self, 'change_thermal_rendering_thread'):
+			self.change_thermal_rendering_thread.join(timeout=2.0)
+		if hasattr(self, 'timer_skycontroller'):
 			self.timer_skycontroller.destroy()
-			#self.skycontroller_thread.join()
-		if 'self.timer_check' in vars():
+		#self.skycontroller_thread.join()
+		if hasattr(self, 'timer_check'):
 			self.timer_check.destroy()
 			self.timer_fast.destroy()
 			self.timer_slow.destroy()
-		if 'self.processing_thread' in vars():
-			self.processing_thread.join()
-			self.drone.streaming.stop()
 
 		self.event_listener_anafi.unsubscribe()
 		self.event_listener_skycontroller.unsubscribe()
@@ -516,7 +522,8 @@ class Anafi(Node):
 		self.drone.disconnect()
 
 		msg_state.data = "DISCONNECTED"
-		self.pub_state.publish(msg_state)
+		if rclpy.ok():
+			self.pub_state.publish(msg_state)
 
 	def check_callback(self):  # checks for the connection
 		if not self.drone.connection_state():
@@ -1344,15 +1351,33 @@ class Anafi(Node):
 			self.offboard = True
 
 
+def disconnect_sigint_handler(signum, frame):
+	print("[INFO] SIGINT caught, shutdown gracefully...")
+	shutdown_event.set()
+
+
+shutdown_event = threading.Event()
+
+
 def main(args=None):
+
 	rclpy.init(args=sys.argv)
 
-	anafi = Anafi()
+	signal.signal(signal.SIGINT, disconnect_sigint_handler)
+	anafi_instance = Anafi()
+	executor = MultiThreadedExecutor()
+	executor.add_node(anafi_instance.node)
 
-	rclpy.spin(anafi.node)
-
-	anafi.destroy_node()
-	rclpy.shutdown()
+	try:
+		while rclpy.ok() and not shutdown_event.is_set():
+			executor.spin_once(timeout_sec=0.1)
+	finally:
+		if anafi_instance is not None:
+			anafi_instance.disconnect()
+			time.sleep(2)
+			anafi_instance.destroy_node()
+		rclpy.shutdown()
+		return 0
 
 
 if __name__ == '__main__':
