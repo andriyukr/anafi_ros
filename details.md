@@ -100,7 +100,7 @@
 | `camera/style` 			| `int` 		| `0` 			| {`0`: natural look, `1`: flat and desaturated images, best for post-processing, `2`: intense - bright colors, warm shade, high contrast, `3`: pastel - soft colors, cold shade, low contrast} | images style 		| |
 | `camera/thermal/rendering` 		| `int` 		| `0` 		| {`0`: visible, `1`: thermal, `2`: blended} 						| thermal image rendering mode (supported only by ANAFI Thermal and ANAFI USA) 						| |
 | `device/ip` 	| `string` 	| `"192.168.53.1"`			| 										| IP address of the connected device 		| 		|
-| `drone/banked_turn` 		| `bool` 		| `true` 			| {`true`: enabled, `false`: disabled} 						| banked turn 				| 		|
+| `drone/banked_turn` 		| `bool` 		| `false` 			| {`true`: enabled, `false`: disabled} 						| banked turn 				| 		|
 | `drone/camera_operated` 		| `bool` 		| `false` 		| {`true`: commands relative to the camera pitch, `false`: otherwise} 		| 					| 		| 
 | `drone/max_altitude` 		| `float`		| `2.0` 			| [`0.5`, `4000.0`] 								| maximum altitude 			| m 		|
 | `drone/max_distance` 		| `float` 	| `10.0` 			| [`10.0`, `4000.0`] 								| maximum distance 			| m 		| 
