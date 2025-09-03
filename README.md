@@ -134,8 +134,11 @@ where
   * `'10.202.0.1'`, for connection to the simulated drone in Sphinx;
 * `model` (ignored, when connecting through Skycontroller) is the model of the drone, it has to be `'4k'`, `'thermal'`, `'usa'` or `'ai'`, depending on the drone model you are connecting to.
 
-> [!WARNING]
+> [!IMPORTANT]
 > To send commands to the drone, you must switch to offboard mode. To switch to offboard mode, set `drone/offboard` parameter to `True`.
+
+> [!NOTE]  
+> The [`anafi_autonomy`](https://github.com/andriyukr/anafi_autonomy) ROS2 package is based on this `anafi_ros` package and contains an interface to control Parrot Anafi drones.
 
 ## Package details
 
