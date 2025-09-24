@@ -100,13 +100,13 @@
 | `camera/style` 			| `int` 		| `0` 			| {`0`: natural look, `1`: flat and desaturated images, best for post-processing, `2`: intense - bright colors, warm shade, high contrast, `3`: pastel - soft colors, cold shade, low contrast} | images style 		| |
 | `camera/thermal/rendering` 		| `int` 		| `0` 		| {`0`: visible, `1`: thermal, `2`: blended} 						| thermal image rendering mode (supported only by ANAFI Thermal and ANAFI USA) 						| |
 | `device/ip` 	| `string` 	| `"192.168.53.1"`			| 										| IP address of the connected device 		| 		|
-| `drone/banked_turn` 		| `bool` 		| `true` 			| {`true`: enabled, `false`: disabled} 						| banked turn 				| 		|
+| `drone/banked_turn` 		| `bool` 		| `false` 			| {`true`: enabled, `false`: disabled} 						| banked turn 				| 		|
 | `drone/camera_operated` 		| `bool` 		| `false` 		| {`true`: commands relative to the camera pitch, `false`: otherwise} 		| 					| 		| 
 | `drone/max_altitude` 		| `float`		| `2.0` 			| [`0.5`, `4000.0`] 								| maximum altitude 			| m 		|
 | `drone/max_distance` 		| `float` 	| `10.0` 			| [`10.0`, `4000.0`] 								| maximum distance 			| m 		| 
 | `drone/max_horizontal_speed` 	| `float` 	| `1.0` 			| [`0.1`, `15.0`] 									| maximum horizontal speed 		| m/s 		| 
 | `drone/max_pitch_roll` 		| `float` 	| `10.0` 			| [`1.0`, `40.0`] 									| maximum pitch and roll angle 		| º 		| 
-| `drone/max_pitch_roll_rate` 	| `float` 	| `200.0` 		| [`40.0`, `300.0`] 								| maximum pitch and roll rotation speed | º/s 		| 
+| `drone/max_pitch_roll_rate` 	| `float` 	| `300.0` 		| [`40.0`, `300.0`] 								| maximum pitch and roll rotation speed | º/s 		| 
 | `drone/max_vertical_speed` 	| `float` 	| `1.0` 			| [`0.1`, `4.0`] 									| maximum vertical speed 		| m/s 		| 
 | `drone/max_yaw_rate` 		| `float` 	| `180.0` 		| [`3.0`, `200.0`] 									| maximum yaw rotation speed 		| º/s 		| 
 | `drone/model` 			| `string` 	| 			| {`"4k"`, `"thermal"`, `"usa"`, `"ai"`} 					| drone's model 			| 		|

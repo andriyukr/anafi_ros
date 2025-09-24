@@ -1,16 +1,16 @@
 # ROS2 Bridge for Parrot ANAFI Drones
 
-This ROS2 package contains the interface to Olympe SDK. Currently, it is compatible with the following models from the **Parrot ANAFI** family: **4K**, **Thermal**, **USA** and **Ai**.
+This ROS2 package contains the interface to the Olympe SDK. Currently, it is compatible with the following models from the **Parrot ANAFI** family: **4K**, **Thermal**, **USA** and **Ai**.
 
 ## Overview
 
 **Author:** Andriy Sarabakha<br />
-**Affiliation:** [Nanyang Technological University (NTU)](https://www.ntu.edu.sg), Singapore<br />
-**Maintainer:** Andriy Sarabakha, andriy.sarabakha@ntu.edu.sg
+**Affiliation:** [Aarhus University]([https://www.au](https://international.au.dk/)), Denmark<br />
+**Maintainer:** Andriy Sarabakha, andriy@ece.au.dk
 
 **Keywords:** Parrot Anafi, ROS, controller
 
-This is research code, expect that it changes often and any fitness for a particular purpose is disclaimed.
+This is research code, expect that it changes often, and any fitness for a particular purpose is disclaimed.
 
 ### Publications
 
@@ -33,7 +33,7 @@ If you use this work in an academic context, please cite the paper:
 
 ## Installation
 
-This package has been tested with **python3** in **ROS2 Humble**/**Ubuntu 22.04** (*recommended*), **ROS2 Jazzy**/**Ubuntu 24.04** and **ROS2 Foxy**/**Ubuntu 20.04**.
+This package has been tested with **python3** in **ROS2 Humble**/**Ubuntu 22.04** (*recommended*), **ROS2 Kilted**/**Ubuntu 24.04** and **ROS2 Foxy**/**Ubuntu 20.04**.
 
 ### Dependencies
 
@@ -133,6 +133,12 @@ where
   * `'192.168.42.1'`, for direct connection to the drone through WiFi,
   * `'10.202.0.1'`, for connection to the simulated drone in Sphinx;
 * `model` (ignored, when connecting through Skycontroller) is the model of the drone, it has to be `'4k'`, `'thermal'`, `'usa'` or `'ai'`, depending on the drone model you are connecting to.
+
+> [!IMPORTANT]
+> To send commands to the drone, you must switch to offboard mode. To switch to offboard mode, set `drone/offboard` parameter to `True`.
+
+> [!NOTE]  
+> The [`anafi_autonomy`](https://github.com/andriyukr/anafi_autonomy) ROS2 package is based on this `anafi_ros` package and contains an interface to control Parrot Anafi drones.
 
 ## Package details
 
