@@ -929,39 +929,47 @@ class Anafi(Node):
 
 	def takeoff_callback(self, request, response):
 		self.node.get_logger().warning("Taking off")
-		self.drone(TakeOff()).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.Piloting.TakeOff
+		result = self.drone(TakeOff()).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.Piloting.TakeOff
 		if not self.simulation_environment:
 			run_id = self.drone.get_state(olympe.messages.common.RunState.RunIdChanged) # https://developer.parrot.com/docs/olympe/arsdkng_common_runstate.html#olympe.messages.common.RunState.RunIdChanged
 			self.node.get_logger().debug('Run Id: %s' % (run_id['runId']))
+		response.success = result.success()
+		response.message = "" if response.success else "Takeoff command rejected by the drone"
 		return response
 	
 	def hand_launch_callback(self, request, response):
 		if request.data:
 			self.node.get_logger().warning("Enabled hand launch")
-			self.drone(UserTakeOff(state = 1)).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.Piloting.UserTakeOff
+			result = self.drone(UserTakeOff(state = 1)).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.Piloting.UserTakeOff
 		else:
 			self.node.get_logger().info("Disabled hand launch")
-			self.drone(
+			result = self.drone(
 				Emergency() >>  # the fastest way to disarm
 				FlyingStateChanged(state="landed")
 			).wait()
+		response.success = result.success()
+		response.message = "" if response.success else "Hand launch command failed"
 		return response
 
 	def land_callback(self, request, response):
-		self.drone(Landing()).wait() # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.Piloting.Landing
+		result = self.drone(Landing()).wait() # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.Piloting.Landing
 		self.node.get_logger().info("Landing")
+		response.success = result.success()
+		response.message = "" if response.success else "Land command rejected by the drone"
 		return response
-		
+
 	def emergency_callback(self, request, response):
-		self.drone(Emergency()).wait() # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.Piloting.Emergency
-		
+		result = self.drone(Emergency()).wait() # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.Piloting.Emergency
+
 		if self.drone.get_state(olympe.messages.ardrone3.SoundState.AlertSound)["state"] == olympe.enums.ardrone3.SoundState.AlertSound_State.stopped: # DEPRECATED: https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_sound.html#olympe.messages.ardrone3.SoundState.AlertSound
 			self.node.get_logger().fatal("Emergency!!!")
 			self.drone(olympe.messages.ardrone3.Sound.StartAlertSound()) # DEPRECATED: https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_sound.html#olympe.messages.ardrone3.Sound.StartAlertSound
 		else:
 			self.drone(olympe.messages.ardrone3.Sound.StopAlertSound()) # DEPRECATED: https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_sound.html#olympe.messages.ardrone3.Sound.StopAlertSound
+		response.success = result.success()
+		response.message = "" if response.success else "Emergency command rejected by the drone"
 		return response
-		
+
 	def halt_callback(self, request, response):  # calls all commands to halt
 		self.drone(PCMD(flag=1, roll=0, pitch=0, yaw=0, gaz=0, timestampAndSeqNum=0))
 		self.drone(NavigateHome(start=0))
@@ -970,6 +978,8 @@ class Anafi(Node):
 		self.drone(olympe.messages.follow_me.stop())
 		self.drone(olympe.messages.rth.abort())
 		self.node.get_logger().warning("HALT!!!")
+		response.success = True
+		response.message = "Halted"
 		return response
 		
 	def navigate_home_callback(self, request, response):
@@ -979,21 +989,25 @@ class Anafi(Node):
 				PCMD(flag=1, roll=0, pitch=0, yaw=0, gaz=0, timestampAndSeqNum=0) >>
 				FlyingStateChanged(state="hovering")
 			).wait()
-			self.drone(NavigateHome(start=1)).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.Piloting.NavigateHome
+			result = self.drone(NavigateHome(start=1)).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.Piloting.NavigateHome
 		else:
-			self.node.get_logger().info("Stopping Navigation Home")		
-			self.drone(NavigateHome(start=0)).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.Piloting.NavigateHome
+			self.node.get_logger().info("Stopping Navigation Home")
+			result = self.drone(NavigateHome(start=0)).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.Piloting.NavigateHome
 		navigate_home_state = self.drone.get_state(olympe.messages.ardrone3.PilotingState.NavigateHomeStateChanged)  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.PilotingState.NavigateHomeStateChanged
 		self.node.get_logger().info("Navigate Home State: state = %s, reason = %s" % (navigate_home_state['state'].name, navigate_home_state['reason'].name))
+		response.success = result.success()
+		response.message = "" if response.success else "Navigate home command rejected by the drone"
 		return response
-		
+
 	def rth_callback(self, request, response):
 		self.node.get_logger().info("Returning to Home")
 		self.drone(
 			PCMD(flag=1, roll=0, pitch=0, yaw=0, gaz=0, timestampAndSeqNum=0) >>
 			FlyingStateChanged(state="hovering")
 		).wait()
-		self.drone(return_to_home()).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_rth.html#olympe.messages.rth.return_to_home
+		result = self.drone(return_to_home()).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_rth.html#olympe.messages.rth.return_to_home
+		response.success = result.success()
+		response.message = "" if response.success else "Return-to-home command rejected by the drone"
 		return response
 		
 	def set_home_callback(self, request, response):
@@ -1020,8 +1034,10 @@ class Anafi(Node):
 		return response
 	
 	def stop_piloted_POI_callback(self, request, response):
-		self.node.get_logger().info("Stopping Piloted Point of Interest")		
-		self.drone(StopPilotedPOI()).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.Piloting.StopPilotedPOI
+		self.node.get_logger().info("Stopping Piloted Point of Interest")
+		result = self.drone(StopPilotedPOI()).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_ardrone3_piloting.html#olympe.messages.ardrone3.Piloting.StopPilotedPOI
+		response.success = result.success()
+		response.message = "" if response.success else "Stop piloted POI command rejected by the drone"
 		return response
 			
 	def flightplan_upload_callback(self, request, response): # https://forum.developer.parrot.com/t/olympe-mavlink-working-example/14041/2
@@ -1059,12 +1075,16 @@ class Anafi(Node):
 		
 	def flightplan_pause_callback(self, request, response):
 		self.node.get_logger().info("FlightPlan pausing")
-		self.drone(olympe.messages.common.Mavlink.Pause()).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_common_mavlink.html#olympe.messages.common.Mavlink.Pause
+		result = self.drone(olympe.messages.common.Mavlink.Pause()).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_common_mavlink.html#olympe.messages.common.Mavlink.Pause
+		response.success = result.success()
+		response.message = "" if response.success else "FlightPlan pause command rejected by the drone"
 		return response
-		
+
 	def flightplan_stop_callback(self, request, response):
 		self.node.get_logger().info("FlightPlan stopping")
-		self.drone(olympe.messages.common.Mavlink.Stop()).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_common_mavlink.html#olympe.messages.common.Mavlink.Stop
+		result = self.drone(olympe.messages.common.Mavlink.Stop()).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_common_mavlink.html#olympe.messages.common.Mavlink.Stop
+		response.success = result.success()
+		response.message = "" if response.success else "FlightPlan stop command rejected by the drone"
 		return response
 		
 	def followme_start_callback(self, request, response):
@@ -1088,7 +1108,9 @@ class Anafi(Node):
 			
 	def followme_stop_callback(self, request, response):
 		self.node.get_logger().info("FollowMe stopping")
-		self.drone(olympe.messages.follow_me.stop()).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_followme.html#olympe.messages.follow_me.stop
+		result = self.drone(olympe.messages.follow_me.stop()).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_followme.html#olympe.messages.follow_me.stop
+		response.success = result.success()
+		response.message = "" if response.success else "FollowMe stop command rejected by the drone"
 		return response
 
 	def calibrate_magnetometer_callback(self, request, response):
@@ -1119,28 +1141,42 @@ class Anafi(Node):
 												('completed' if state['yAxisCalibration'] else 'failed'),
 												('completed' if state['zAxisCalibration'] else 'failed')))
 				self.node.get_logger().fatal("Calibration failed")
+				response.success = False
+				response.message = "Magnetometer calibration failed"
 			else:
 				self.node.get_logger().info("Calibration completed")
+				response.success = True
+				response.message = "Magnetometer calibration completed"
 		else:
 			self.node.get_logger().info("Magnetometer calibration is not required")
+			response.success = True
+			response.message = "Magnetometer calibration is not required"
 		return response
 		
 	def calibrate_gimbal_callback(self, request, response):
 		if self.drone.get_state(olympe.messages.gimbal.calibration_state)[0]['state'] == olympe.enums.gimbal.calibration_state.required: # https://developer.parrot.com/docs/olympe/arsdkng_gimbal.html#olympe.messages.gimbal.calibration_state
 			self.node.get_logger().info("Calibrating gimbal")
-			self.drone(olympe.messages.gimbal.calibrate(gimbal_id=0)).wait() # https://developer.parrot.com/docs/olympe/arsdkng_gimbal.html#olympe.messages.gimbal.calibrate
+			result = self.drone(olympe.messages.gimbal.calibrate(gimbal_id=0)).wait() # https://developer.parrot.com/docs/olympe/arsdkng_gimbal.html#olympe.messages.gimbal.calibrate
+			response.success = result.success()
+			response.message = "" if response.success else "Gimbal calibration failed"
 		else:
 			self.node.get_logger().info("Gimbal calibration is not required")
+			response.success = True
+			response.message = "Gimbal calibration is not required"
 		return response
-		
+
 	def reset_zoom_callback(self, request, response):
 		self.node.get_logger().debug("Reseting zoom")
-		self.drone(camera.reset_zoom(cam_id=0)).wait() # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.messages.camera.reset_zoom
+		result = self.drone(camera.reset_zoom(cam_id=0)).wait() # https://developer.parrot.com/docs/olympe/arsdkng_camera.html#olympe.messages.camera.reset_zoom
+		response.success = result.success()
+		response.message = "" if response.success else "Reset zoom command rejected by the drone"
 		return response
-		
+
 	def reset_gimbal_callback(self, request, response):
 		self.node.get_logger().debug("Reseting gimbal")
-		self.drone(olympe.messages.gimbal.reset_orientation(gimbal_id=0)).wait() # https://developer.parrot.com/docs/olympe/arsdkng_gimbal.html#olympe.messages.gimbal.reset_orientation
+		result = self.drone(olympe.messages.gimbal.reset_orientation(gimbal_id=0)).wait() # https://developer.parrot.com/docs/olympe/arsdkng_gimbal.html#olympe.messages.gimbal.reset_orientation
+		response.success = result.success()
+		response.message = "" if response.success else "Reset gimbal command rejected by the drone"
 		return response
 			
 	def take_photo_callback(self, request, response):
@@ -1205,6 +1241,7 @@ class Anafi(Node):
 				self.node.get_logger().info("Downloading %i media" % num_media)
 
 				media_count = 1
+				failed_count = 0
 				for media in media_id:
 					media_info = olympe.Media.media_info(self.drone.media, media_id = media)
 					self.node.get_logger().info("Media %i/%i: downloading %.1fMB" % (media_count, num_media, media_info.size/(2**20)))
@@ -1215,23 +1252,33 @@ class Anafi(Node):
 					for resource in resources:
 						if not resource.success():
 							self.node.get_logger().error("Failed to download %s" % str(resource.resource_id))
+							failed_count += 1
 							continue
 
 					media_count += 1
 
 				if request.data:  # cut media
 					self.drone(delete_all_media())
+
+				response.success = (failed_count == 0)
+				response.message = "" if response.success else "%i/%i media failed to download" % (failed_count, num_media)
 			else:
 				self.node.get_logger().info("No media found")
+				response.success = True
+				response.message = "No media found"
 		else:
 			self.node.get_logger().warning("Storage is not indexed :(")
+			response.success = False
+			response.message = "Storage is not indexed"
 		return response
 	
 	def reboot_callback(self, request, response):
 		self.node.get_logger().warning("Rebooting...")
-		assert self.drone(olympe.messages.common.Common.Reboot()).wait().success()  # https://developer.parrot.com/docs/olympe/arsdkng_common_common.html#olympe.messages.common.Common.Reboot
+		result = self.drone(olympe.messages.common.Common.Reboot()).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_common_common.html#olympe.messages.common.Common.Reboot
+		response.success = result.success()
+		response.message = "" if response.success else "Reboot command rejected by the drone"
 		return response
-		
+
 	def format_callback(self, request, response):
 		info = self.drone.get_state(olympe.messages.user_storage.info)  # https://developer.parrot.com/docs/olympe/arsdkng_user_storage.html#olympe.messages.user_storage.info
 		if info['name'] != "":
@@ -1241,13 +1288,17 @@ class Anafi(Node):
 				type=olympe.enums.user_storage.formatting_type(0))  # https://developer.parrot.com/docs/olympe/arsdkng_user_storage.html#olympe.enums.user_storage.formatting_type
 				>>
 				olympe.messages.user_storage.start_monitoring(period=1))  # https://developer.parrot.com/docs/olympe/arsdkng_user_storage.html#olympe.messages.user_storage.start_monitoring
+			response.success = True
+			response.message = "Formatting started"
 		else:
 			self.node.get_logger().warning("There is no media to format")
+			response.success = False
+			response.message = "No media to format"
 		return response
 
 	def discover_drones_callback(self, request, response):
 		self.node.get_logger().info("Discovering drones...")
-		self.drone(olympe.messages.drone_manager.discover_drones()).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_drone_manager.html#olympe.messages.drone_manager.discover_drones
+		result = self.drone(olympe.messages.drone_manager.discover_drones()).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_drone_manager.html#olympe.messages.drone_manager.discover_drones
 		drone_list = self.drone.get_state(olympe.messages.drone_manager.drone_list_item)  # https://developer.parrot.com/docs/olympe/arsdkng_drone_manager.html#olympe.messages.drone_manager.drone_list_item
 		for drone in drone_list:
 			self.node.get_logger().info(
@@ -1257,11 +1308,15 @@ class Anafi(Node):
 				 ('yes' if drone_list[drone]['active'] == 1 else 'no'),
 				 ('yes' if drone_list[drone]['visible'] == 1 else 'no'), drone_list[drone]['security'].name,
 				 ('yes' if drone_list[drone]['has_saved_key'] == 1 else 'no'), drone_list[drone]['rssi']))
+		response.success = result.success()
+		response.message = "" if response.success else "Discover drones command rejected by the skycontroller"
 		return response
 
 	def forget_drone_callback(self, request, response):
 		self.node.get_logger().info("Forgetting drone %s" % self.serial)
-		self.drone(olympe.messages.drone_manager.forget(serial=self.serial)).wait().success()  # https://developer.parrot.com/docs/olympe/arsdkng_drone_manager.html#olympe.messages.drone_manager.forget
+		result = self.drone(olympe.messages.drone_manager.forget(serial=self.serial)).wait()  # https://developer.parrot.com/docs/olympe/arsdkng_drone_manager.html#olympe.messages.drone_manager.forget
+		response.success = result.success()
+		response.message = "" if response.success else "Forget drone command rejected by the skycontroller"
 		return response
 
 	def offboard_callback(self, request, response):
@@ -1269,6 +1324,8 @@ class Anafi(Node):
 			self.switch_offboard()
 		else:
 			self.switch_manual()
+		response.success = True
+		response.message = ""
 		return response
 
 	def rpyt_callback(self, msg):
