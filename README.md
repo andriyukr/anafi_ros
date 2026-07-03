@@ -86,6 +86,10 @@ This package has been tested with **python3** in **ROS2 Humble**/**Ubuntu 22.04*
 
       pip install scipy
 
+- [Requests](https://pypi.org/project/requests/) - library for making HTTP requests:
+
+      pip install requests
+
 > [!NOTE]  
 > To install Python packages using `pip` in Ubuntu 24.04, you can add `--break-system-packages` flag:
 > 
