@@ -185,7 +185,7 @@ class Anafi(Node):
 
 		if self.skycontroller_enabled:  # connect to SkyController
 			self.node.get_logger().info("Connecting through SkyController")
-			self.drone = olympe.SkyController(self.ip) # self.drone = olympe.Drone(self.ip)
+			self.drone = olympe.Drone(self.ip)
 			#self.skyctrl = self.drone  # TODO: remove
 		else:  # connect to Anafi
 			self.node.get_logger().info("Connecting directly to Anafi")
